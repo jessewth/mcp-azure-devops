@@ -299,12 +299,81 @@ def _query_work_items_impl(
     return "\n\n".join(formatted_results)
 
 
+def _create_work_item_impl(
+    project: str,
+    title: str,
+    description: str,
+    work_item_type: str,
+    wit_client: WorkItemTrackingClient,
+    area_path: Optional[str] = None,
+    iteration_path: Optional[str] = None
+) -> str:
+    """
+    建立工作項目的實作。
+
+    Args:
+        project: 專案名稱
+        title: 工作項目標題
+        description: 工作項目描述
+        work_item_type: 工作項目類型 (例如: Bug, Task, User Story)
+        wit_client: 工作項目追蹤客戶端
+        area_path: 區域路徑 (選填)
+        iteration_path: 迭代路徑 (選填)
+            
+    Returns:
+        已格式化的字串，包含新建立的工作項目資訊
+    """
+    try:
+        # 建立工作項目的欄位
+        document = [
+            {
+                "op": "add",
+                "path": "/fields/System.Title",
+                "value": title
+            },
+            {
+                "op": "add",
+                "path": "/fields/System.Description",
+                "value": description
+            }
+        ]
+
+        # 如果有提供區域路徑，加入設定
+        if area_path:
+            document.append({
+                "op": "add",
+                "path": "/fields/System.AreaPath",
+                "value": area_path
+            })
+
+        # 如果有提供迭代路徑，加入設定
+        if iteration_path:
+            document.append({
+                "op": "add",
+                "path": "/fields/System.IterationPath",
+                "value": iteration_path
+            })
+
+        # 建立工作項目
+        created_item = wit_client.create_work_item(
+            document=document,
+            project=project,
+            type=work_item_type
+        )
+
+        # 回傳基本資訊
+        return _format_work_item_basic(created_item)
+
+    except Exception as e:
+        return f"建立工作項目時發生錯誤: {str(e)}"
+
+
 def register_tools(mcp) -> None:
     """
-    Register work item tools with the MCP server.
+    向 MCP 伺服器註冊工作項目工具。
     
     Args:
-        mcp: The FastMCP server instance
+        mcp: FastMCP 伺服器實例
     """
     
     @mcp.tool()
@@ -387,3 +456,40 @@ def register_tools(mcp) -> None:
             return _get_work_item_comments_impl(id, wit_client, project)
         except AzureDevOpsClientError as e:
             return f"Error: {str(e)}"
+    
+    @mcp.tool()
+    def create_work_item(
+        project: str,
+        title: str,
+        description: str,
+        work_item_type: str = "Task",
+        area_path: Optional[str] = None,
+        iteration_path: Optional[str] = None
+    ) -> str:
+        r"""
+        建立新的工作項目。
+
+        Args:
+            project: 專案名稱
+            title: 工作項目標題
+            description: 工作項目描述
+            work_item_type: 工作項目類型 (預設: Task)
+            area_path: 區域路徑 (選填，例如: G11n\OKR)
+            iteration_path: 迭代路徑 (選填，例如: G11n\Sprint 189)
+            
+        Returns:
+            已格式化的字串，包含新建立的工作項目資訊
+        """
+        try:
+            wit_client = get_work_item_client()
+            return _create_work_item_impl(
+                project,
+                title,
+                description,
+                work_item_type,
+                wit_client,
+                area_path,
+                iteration_path
+            )
+        except AzureDevOpsClientError as e:
+            return f"錯誤: {str(e)}"

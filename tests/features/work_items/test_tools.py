@@ -1,10 +1,11 @@
-import pytest
+"""
+Work item tools tests.
+"""
 from unittest.mock import MagicMock, patch
-from azure.devops.v7_1.work_item_tracking.models import WorkItem, WorkItemReference, Wiql, ReferenceLinks
+import pytest
 from mcp_azure_devops.features.work_items.tools import (
-    _query_work_items_impl,
-    _get_work_item_impl,
-    _get_work_item_comments_impl
+    _create_work_item_impl,
+    _format_work_item_basic
 )
 
 # Tests for _query_work_items_impl
@@ -171,3 +172,211 @@ def test_get_work_item_comments_impl_no_comments():
     result = _get_work_item_comments_impl(123, mock_client)
     
     assert "No comments found for this work item." in result
+
+
+# Tests for _create_work_item_impl
+def test_create_work_item_impl_success():
+    """測試成功建立工作項目的情境"""
+    # 準備測試資料
+    mock_client = MagicMock()
+    mock_work_item = MagicMock()
+    mock_work_item.id = 1
+    mock_work_item.fields = {
+        "System.Title": "測試標題",
+        "System.WorkItemType": "Task",
+        "System.State": "New",
+        "System.TeamProject": "測試專案"
+    }
+    mock_client.create_work_item.return_value = mock_work_item
+
+    # 執行測試
+    result = _create_work_item_impl(
+        project="測試專案",
+        title="測試標題",
+        description="測試描述",
+        work_item_type="Task",
+        wit_client=mock_client
+    )
+
+    # 驗證結果
+    assert "Work Item 1: 測試標題" in result
+    assert "Type: Task" in result
+    assert "State: New" in result
+    assert "Project: 測試專案" in result
+
+    # 驗證呼叫
+    mock_client.create_work_item.assert_called_once()
+    call_args = mock_client.create_work_item.call_args
+    assert call_args[1]["project"] == "測試專案"
+    assert call_args[1]["type"] == "Task"
+    document = call_args[1]["document"]
+    assert any(op["path"] == "/fields/System.Title" and op["value"] == "測試標題" for op in document)
+    assert any(op["path"] == "/fields/System.Description" and op["value"] == "測試描述" for op in document)
+
+def test_create_work_item_impl_error():
+    """測試建立工作項目失敗的情境"""
+    # 準備測試資料
+    mock_client = MagicMock()
+    mock_client.create_work_item.side_effect = Exception("測試錯誤")
+
+    # 執行測試
+    result = _create_work_item_impl(
+        project="測試專案",
+        title="測試標題",
+        description="測試描述",
+        work_item_type="Task",
+        wit_client=mock_client
+    )
+
+    # 驗證結果
+    assert "建立工作項目時發生錯誤" in result
+    assert "測試錯誤" in result
+
+@pytest.mark.asyncio
+async def test_create_work_item_tool():
+    """測試建立工作項目工具函式"""
+    from mcp_azure_devops.features.work_items.tools import register_tools
+    
+    # 建立模擬的 MCP 伺服器
+    mock_mcp = MagicMock()
+    tool_registry = {}
+    
+    def mock_tool():
+        def decorator(f):
+            tool_registry[f.__name__] = f
+            return f
+        return decorator
+    
+    mock_mcp.tool = mock_tool
+    
+    # 註冊工具
+    register_tools(mock_mcp)
+    
+    # 驗證工具是否已註冊
+    assert "create_work_item" in tool_registry
+    
+    # 準備測試資料
+    with patch("mcp_azure_devops.features.work_items.tools.get_work_item_client") as mock_get_client:
+        mock_client = MagicMock()
+        mock_work_item = MagicMock()
+        mock_work_item.id = 1
+        mock_work_item.fields = {
+            "System.Title": "測試標題",
+            "System.WorkItemType": "Task",
+            "System.State": "New",
+            "System.TeamProject": "測試專案"
+        }
+        mock_client.create_work_item.return_value = mock_work_item
+        mock_get_client.return_value = mock_client
+        
+        # 執行測試
+        result = tool_registry["create_work_item"](
+            project="測試專案",
+            title="測試標題",
+            description="測試描述"
+        )
+        
+        # 驗證結果
+        assert "Work Item 1: 測試標題" in result
+        assert "Type: Task" in result
+        assert "State: New" in result
+        assert "Project: 測試專案" in result
+
+def test_create_work_item_impl_with_area_and_iteration():
+    """測試建立工作項目時包含區域路徑和迭代路徑的情境"""
+    # 準備測試資料
+    mock_client = MagicMock()
+    mock_work_item = MagicMock()
+    mock_work_item.id = 1
+    mock_work_item.fields = {
+        "System.Title": "測試標題",
+        "System.WorkItemType": "Task",
+        "System.State": "New",
+        "System.TeamProject": "測試專案",
+        "System.AreaPath": "G11n\\OKR",
+        "System.IterationPath": "G11n\\Sprint 189"
+    }
+    mock_client.create_work_item.return_value = mock_work_item
+
+    # 執行測試
+    result = _create_work_item_impl(
+        project="測試專案",
+        title="測試標題",
+        description="測試描述",
+        work_item_type="Task",
+        wit_client=mock_client,
+        area_path="G11n\\OKR",
+        iteration_path="G11n\\Sprint 189"
+    )
+
+    # 驗證結果
+    assert "Work Item 1: 測試標題" in result
+    assert "Type: Task" in result
+    assert "State: New" in result
+    assert "Project: 測試專案" in result
+
+    # 驗證呼叫
+    mock_client.create_work_item.assert_called_once()
+    call_args = mock_client.create_work_item.call_args
+    assert call_args[1]["project"] == "測試專案"
+    assert call_args[1]["type"] == "Task"
+    document = call_args[1]["document"]
+    assert any(op["path"] == "/fields/System.Title" and op["value"] == "測試標題" for op in document)
+    assert any(op["path"] == "/fields/System.Description" and op["value"] == "測試描述" for op in document)
+    assert any(op["path"] == "/fields/System.AreaPath" and op["value"] == "G11n\\OKR" for op in document)
+    assert any(op["path"] == "/fields/System.IterationPath" and op["value"] == "G11n\\Sprint 189" for op in document)
+
+@pytest.mark.asyncio
+async def test_create_work_item_tool_with_area_and_iteration():
+    """測試建立工作項目工具函式，包含區域路徑和迭代路徑"""
+    from mcp_azure_devops.features.work_items.tools import register_tools
+    
+    # 建立模擬的 MCP 伺服器
+    mock_mcp = MagicMock()
+    tool_registry = {}
+    
+    def mock_tool():
+        def decorator(f):
+            tool_registry[f.__name__] = f
+            return f
+        return decorator
+    
+    mock_mcp.tool = mock_tool
+    
+    # 註冊工具
+    register_tools(mock_mcp)
+    
+    # 驗證工具是否已註冊
+    assert "create_work_item" in tool_registry
+    
+    # 準備測試資料
+    with patch("mcp_azure_devops.features.work_items.tools.get_work_item_client") as mock_get_client:
+        mock_client = MagicMock()
+        mock_work_item = MagicMock()
+        mock_work_item.id = 1
+        mock_work_item.fields = {
+            "System.Title": "測試標題",
+            "System.WorkItemType": "Task",
+            "System.State": "New",
+            "System.TeamProject": "測試專案",
+            "System.AreaPath": "G11n\\OKR",
+            "System.IterationPath": "G11n\\Sprint 189"
+        }
+        mock_client.create_work_item.return_value = mock_work_item
+        mock_get_client.return_value = mock_client
+        
+        # 執行測試
+        result = tool_registry["create_work_item"](
+            project="測試專案",
+            title="測試標題",
+            description="測試描述",
+            work_item_type="Task",
+            area_path="G11n\\OKR",
+            iteration_path="G11n\\Sprint 189"
+        )
+        
+        # 驗證結果
+        assert "Work Item 1: 測試標題" in result
+        assert "Type: Task" in result
+        assert "State: New" in result
+        assert "Project: 測試專案" in result
