@@ -3,6 +3,7 @@ Work item tools for Azure DevOps.
 
 This module provides MCP tools for working with Azure DevOps work items.
 """
+import os
 from typing import Optional, List
 from azure.devops.v7_1.work_item_tracking.models import Wiql, WorkItem
 from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient
@@ -58,6 +59,16 @@ def _format_work_item_detailed(work_item: WorkItem, basic_info: str) -> str:
     if "System.Description" in fields:
         details.append("\n## Description")
         details.append(fields["System.Description"])
+    
+    # 新增 Tags 資訊
+    if "System.Tags" in fields and fields["System.Tags"]:
+        details.append("\n## Tags")
+        details.append(fields["System.Tags"])
+    
+    # 新增 Remaining Work 資訊
+    if "Microsoft.VSTS.Scheduling.RemainingWork" in fields:
+        details.append("\n## Remaining Work")
+        details.append(f"{fields['Microsoft.VSTS.Scheduling.RemainingWork']} hours")
     
     # Add acceptance criteria if available
     if "Microsoft.VSTS.Common.AcceptanceCriteria" in fields:
@@ -368,6 +379,196 @@ def _create_work_item_impl(
         return f"建立工作項目時發生錯誤: {str(e)}"
 
 
+def _upload_attachment_impl(
+    file_path: str,
+    wit_client: WorkItemTrackingClient,
+    project: Optional[str] = None
+) -> tuple[str, str]:
+    """
+    上傳檔案附件到 Azure DevOps。
+
+    Args:
+        file_path: 本機檔案路徑
+        wit_client: 工作項目追蹤客戶端
+        project: 專案名稱 (選填)
+            
+    Returns:
+        tuple[str, str]: (附件 URL, 附件名稱)
+    """
+    try:
+        # 檢查檔案是否存在
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"找不到檔案: {file_path}")
+
+        # 取得檔案名稱
+        file_name = os.path.basename(file_path)
+        
+        # 讀取檔案內容為位元組
+        with open(file_path, 'rb') as f:
+            file_content = f.read()
+            
+        # 建立位元組串流
+        from io import BytesIO
+        upload_stream = BytesIO(file_content)
+
+        # 上傳附件
+        attachment = wit_client.create_attachment(
+            upload_stream=upload_stream,
+            file_name=file_name,
+            project=project
+        )
+
+        return attachment.url, file_name
+
+    except Exception as e:
+        raise Exception(f"上傳附件時發生錯誤: {str(e)}")
+
+
+def _update_work_item_impl(
+    item_id: int,
+    wit_client: WorkItemTrackingClient,
+    title: Optional[str] = None,
+    description: Optional[str] = None,
+    state: Optional[str] = None,
+    area_path: Optional[str] = None,
+    iteration_path: Optional[str] = None,
+    assigned_to: Optional[str] = None,
+    tags: Optional[str] = None  # 新增 tags 參數
+) -> str:
+    """
+    更新工作項目的實作。
+
+    Args:
+        item_id: 工作項目 ID
+        wit_client: 工作項目追蹤客戶端
+        title: 工作項目標題 (選填)
+        description: 工作項目描述 (選填)
+        state: 工作項目狀態 (選填)
+        area_path: 區域路徑 (選填)
+        iteration_path: 迭代路徑 (選填)
+        assigned_to: 指派給 (選填)
+        tags: 標籤，多個標籤用分號分隔 (選填，例如: "tag1; tag2")
+            
+    Returns:
+        已格式化的字串，包含更新後的工作項目資訊
+    """
+    try:
+        # 建立更新文件
+        document = []
+        
+        # 只更新有提供的欄位
+        if title:
+            document.append({
+                "op": "add",
+                "path": "/fields/System.Title",
+                "value": title
+            })
+            
+        if description:
+            document.append({
+                "op": "add",
+                "path": "/fields/System.Description",
+                "value": description
+            })
+            
+        if state:
+            document.append({
+                "op": "add",
+                "path": "/fields/System.State",
+                "value": state
+            })
+            
+        if area_path:
+            document.append({
+                "op": "add",
+                "path": "/fields/System.AreaPath",
+                "value": area_path
+            })
+            
+        if iteration_path:
+            document.append({
+                "op": "add",
+                "path": "/fields/System.IterationPath",
+                "value": iteration_path
+            })
+            
+        if assigned_to:
+            document.append({
+                "op": "add",
+                "path": "/fields/System.AssignedTo",
+                "value": assigned_to
+            })
+
+        # 新增 tags 的處理
+        if tags is not None:  # 使用 is not None 來允許空字串作為清除標籤的方式
+            document.append({
+                "op": "add",
+                "path": "/fields/System.Tags",
+                "value": tags
+            })
+
+        if not document:
+            return "沒有提供任何要更新的欄位"
+
+        # 更新工作項目
+        updated_item = wit_client.update_work_item(
+            document=document,
+            id=item_id
+        )
+
+        # 回傳更新後的基本資訊
+        return _format_work_item_basic(updated_item)
+
+    except Exception as e:
+        return f"更新工作項目時發生錯誤: {str(e)}"
+
+
+def _update_work_item_with_attachment_impl(
+    item_id: int,
+    attachment_url: str,
+    attachment_name: str,
+    comment: Optional[str],
+    wit_client: WorkItemTrackingClient
+) -> str:
+    """
+    更新工作項目並加入附件。
+
+    Args:
+        item_id: 工作項目 ID
+        attachment_url: 附件 URL
+        attachment_name: 附件名稱
+        comment: 附件說明 (選填)
+        wit_client: 工作項目追蹤客戶端
+            
+    Returns:
+        str: 更新後的工作項目資訊
+    """
+    try:
+        # 建立更新文件
+        document = [{
+            "op": "add",
+            "path": "/relations/-",
+            "value": {
+                "rel": "AttachedFile",
+                "url": attachment_url,
+                "attributes": {
+                    "comment": comment or f"已上傳附件: {attachment_name}"
+                }
+            }
+        }]
+
+        # 更新工作項目
+        updated_item = wit_client.update_work_item(
+            document=document,
+            id=item_id
+        )
+
+        return _format_work_item_basic(updated_item)
+
+    except Exception as e:
+        return f"更新工作項目時發生錯誤: {str(e)}"
+
+
 def register_tools(mcp) -> None:
     """
     向 MCP 伺服器註冊工作項目工具。
@@ -491,5 +692,88 @@ def register_tools(mcp) -> None:
                 area_path,
                 iteration_path
             )
+        except AzureDevOpsClientError as e:
+            return f"錯誤: {str(e)}"
+
+    @mcp.tool()
+    def update_work_item(
+        id: int,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+        state: Optional[str] = None,
+        area_path: Optional[str] = None,
+        iteration_path: Optional[str] = None,
+        assigned_to: Optional[str] = None,
+        tags: Optional[str] = None  # 新增 tags 參數
+    ) -> str:
+        """
+        更新工作項目。
+
+        Args:
+            id: 工作項目 ID
+            title: 工作項目標題 (選填)
+            description: 工作項目描述 (選填)
+            state: 工作項目狀態 (選填)
+            area_path: 區域路徑 (選填)
+            iteration_path: 迭代路徑 (選填)
+            assigned_to: 指派給 (選填)
+            
+        Returns:
+            已格式化的字串，包含更新後的工作項目資訊
+        """
+        try:
+            wit_client = get_work_item_client()
+            return _update_work_item_impl(
+                id,
+                wit_client,
+                title,
+                description,
+                state,
+                area_path,
+                iteration_path,
+                assigned_to,
+                tags  # 加入 tags 參數
+            )
+        except AzureDevOpsClientError as e:
+            return f"錯誤: {str(e)}"
+
+    @mcp.tool()
+    def add_work_item_attachment(
+        id: int,
+        file_path: str,
+        comment: Optional[str] = None,
+        project: Optional[str] = None
+    ) -> str:
+        """
+        替工作項目新增附件。
+
+        Args:
+            id: 工作項目 ID
+            file_path: 本機檔案路徑
+            comment: 附件說明 (選填)
+            project: 專案名稱 (選填)
+            
+        Returns:
+            更新後的工作項目資訊
+        """
+        try:
+            wit_client = get_work_item_client()
+            
+            # 上傳附件
+            attachment_url, attachment_name = _upload_attachment_impl(
+                file_path,
+                wit_client,
+                project
+            )
+            
+            # 更新工作項目
+            return _update_work_item_with_attachment_impl(
+                id,
+                attachment_url,
+                attachment_name,
+                comment,
+                wit_client
+            )
+            
         except AzureDevOpsClientError as e:
             return f"錯誤: {str(e)}"
