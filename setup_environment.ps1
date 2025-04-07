@@ -32,6 +32,22 @@ Write-Host "正在安裝專案相依套件..." -ForegroundColor Cyan
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 
+# 檢查 uv 安裝
+Write-Host "正在檢查 uv 安裝..." -ForegroundColor Cyan
+try {
+    $uvVersion = uv --version
+    Write-Host "已安裝的 uv 版本: $uvVersion" -ForegroundColor Green
+} catch {
+    Write-Host "未找到 uv，正在安裝..." -ForegroundColor Yellow
+    try {
+        python -m pip install uv
+        Write-Host "uv 安裝成功!" -ForegroundColor Green
+    } catch {
+        Write-Host "錯誤: 無法安裝 uv" -ForegroundColor Red
+        exit
+    }
+}
+
 # 設定 .env 檔案
 Write-Host "正在設定環境變數..." -ForegroundColor Cyan
 $pat = Read-Host -Prompt "請輸入您的 Azure DevOps Personal Access Token (PAT)"
@@ -49,7 +65,15 @@ AZURE_DEVOPS_PAT=$pat
 AZURE_DEVOPS_ORGANIZATION_URL=$orgUrl
 "@
 
-Set-Content -Path ".\.env" -Value $envContent
+# 確保目標目錄存在
+$envPath = ".\src\mcp_azure_devops\.env"
+$envDir = Split-Path -Path $envPath -Parent
+
+if (-not (Test-Path -Path $envDir)) {
+    New-Item -ItemType Directory -Path $envDir -Force | Out-Null
+}
+
+Set-Content -Path $envPath -Value $envContent
 
 Write-Host "成功建立 .env 檔案!" -ForegroundColor Green
 
