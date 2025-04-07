@@ -9,9 +9,6 @@ from mcp_azure_devops.features import register_all
 from dotenv import load_dotenv
 load_dotenv()
 
-from dotenv import load_dotenv
-load_dotenv()
-
 # Create a FastMCP server instance with a name
 mcp = FastMCP("Azure DevOps")
 
