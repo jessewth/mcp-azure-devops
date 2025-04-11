@@ -6,41 +6,98 @@ Write-Host "Welcome to MCP Azure DevOps Environment Setup Script" -ForegroundCol
 Write-Host "This script will help you set up required environments and dependencies" -ForegroundColor Green
 Write-Host "===============================================" -ForegroundColor Green
 
-# Check Python installation
-Write-Host "Checking Python installation..." -ForegroundColor Cyan
+# Detect which Python command is available
+$pythonCommand = $null
+$pythonVersion = $null
+
+# Try to detect 'python' command
 try {
-    $pythonVersion = python --version
-    Write-Host "Installed Python version: $pythonVersion" -ForegroundColor Green
-    
-    $pythonVersionNumber = $pythonVersion -replace "Python ", ""
-    $versionParts = $pythonVersionNumber.Split(".")
-    $majorVersion = [int]$versionParts[0]
-    $minorVersion = [int]$versionParts[1]
-    
-    if ($majorVersion -lt 3 -or ($majorVersion -eq 3 -and $minorVersion -lt 9)) {
-        Write-Host "Warning: Python 3.9+ version is required" -ForegroundColor Yellow
-        Write-Host "Please install a newer version of Python and run this script again" -ForegroundColor Yellow
-        exit
+    $pythonVersion = python --version 2>&1
+    if ($pythonVersion -match "Python (\d+\.\d+\.\d+)") {
+        $pythonCommand = "python"
+        Write-Host "Detected 'python' command. Using Python version: $pythonVersion" -ForegroundColor Green
     }
 } catch {
-    Write-Host "Error: Python not found. Please install Python 3.9+ and run this script again" -ForegroundColor Red
+    Write-Host "Python command 'python' not found, trying alternative..." -ForegroundColor Yellow
+}
+
+# If 'python' fails, try 'py' command
+if (-not $pythonCommand) {
+    try {
+        $pythonVersion = py --version 2>&1
+        if ($pythonVersion -match "Python (\d+\.\d+\.\d+)") {
+            $pythonCommand = "py"
+            Write-Host "Detected 'py' command. Using Python version: $pythonVersion" -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "Python command 'py' not found either." -ForegroundColor Yellow
+    }
+}
+
+# Exit if no Python command found
+if (-not $pythonCommand) {
+    Write-Host "Error: No Python command found. Please install Python 3.9+ and ensure it's in your PATH." -ForegroundColor Red
+    Write-Host "You can download Python from: https://www.python.org/downloads/" -ForegroundColor Cyan
+    exit
+}
+
+# Check Python version
+$pythonVersionNumber = $pythonVersion -replace "Python ", ""
+$versionParts = $pythonVersionNumber.Split(".")
+$majorVersion = [int]$versionParts[0]
+$minorVersion = [int]$versionParts[1]
+
+if ($majorVersion -lt 3 -or ($majorVersion -eq 3 -and $minorVersion -lt 9)) {
+    Write-Host "Warning: Python 3.9+ version is required" -ForegroundColor Yellow
+    Write-Host "Please install a newer version of Python and run this script again" -ForegroundColor Yellow
     exit
 }
 
 # Install project dependencies
 Write-Host "Installing project dependencies..." -ForegroundColor Cyan
-python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+& $pythonCommand -m pip install --upgrade pip
+& $pythonCommand -m pip install -e ".[dev]"
+
+# Check pipx installation
+Write-Host "Checking pipx installation status..." -ForegroundColor Cyan
+$pipxInstalled = $false
+try {
+    $pipxVersion = & $pythonCommand -m pipx --version 2>&1
+    if ($pipxVersion -match "\d+\.\d+\.\d+") {
+        $pipxInstalled = $true
+        Write-Host "Installed pipx version: $pipxVersion" -ForegroundColor Green
+    }
+} catch {
+    Write-Host "pipx not found, installing..." -ForegroundColor Yellow
+}
+
+if (-not $pipxInstalled) {
+    try {
+        & $pythonCommand -m pip install --user pipx
+        & $pythonCommand -m pipx ensurepath
+        Write-Host "pipx installation successful!" -ForegroundColor Green
+    } catch {
+        Write-Host "Error: Failed to install pipx" -ForegroundColor Red
+        exit
+    }
+}
 
 # Check uv installation
-Write-Host "Checking uv installation..." -ForegroundColor Cyan
+Write-Host "Checking uv installation status..." -ForegroundColor Cyan
+$uvInstalled = $false
 try {
-    $uvVersion = uv --version
-    Write-Host "Installed uv version: $uvVersion" -ForegroundColor Green
+    $uvVersion = uv --version 2>&1
+    if ($uvVersion -match "\d+\.\d+\.\d+") {
+        $uvInstalled = $true
+        Write-Host "Installed uv version: $uvVersion" -ForegroundColor Green
+    }
 } catch {
     Write-Host "uv not found, installing..." -ForegroundColor Yellow
+}
+
+if (-not $uvInstalled) {
     try {
-        python -m pip install uv
+        & $pythonCommand -m pipx install uv
         Write-Host "uv installation successful!" -ForegroundColor Green
     } catch {
         Write-Host "Error: Failed to install uv" -ForegroundColor Red
@@ -96,7 +153,8 @@ try {
         # Try to find uv from common locations
         $possiblePaths = @(
             "C:\Python311\Scripts\uv.exe",
-            "C:\Users\$env:USERNAME\AppData\Local\Programs\Python\Python311\Scripts\uv.exe"
+            "C:\Users\$env:USERNAME\AppData\Local\Programs\Python\Python311\Scripts\uv.exe",
+            "$env:LOCALAPPDATA\pipx\venvs\uv\Scripts\uv.exe"
         )
         
         foreach ($path in $possiblePaths) {
@@ -165,11 +223,15 @@ if ($uvPath) {
         )
     }
 } else {
-    # Use normal Python command
+    # Use detected Python command
     $azureDevOpsConfig = @{
-        command = "python"
+        command = "uv.exe"
         args = @(
-            "-m"
+            "--directory"
+            $srcPath
+            "run"
+            "--with"
+            "mcp[cli]"
             "mcp"
             "run"
             "$srcPath\server.py"
