@@ -55,10 +55,11 @@ def _format_work_item_detailed(work_item: WorkItem, basic_info: str) -> str:
     details = [basic_info]  # Start with basic info already provided
     
     fields = work_item.fields or {}
-    
     if "System.Description" in fields:
         details.append("\n## Description")
-        details.append(fields["System.Description"])
+        # 將描述中的換行符號轉換為 Markdown 換行格式 (雙空格加換行符)
+        description = fields["System.Description"].replace('\n', '  \n')
+        details.append(description)
     
     # 新增 Tags 資訊
     if "System.Tags" in fields and fields["System.Tags"]:
@@ -325,7 +326,7 @@ def _create_work_item_impl(
     Args:
         project: 專案名稱
         title: 工作項目標題
-        description: 工作項目描述
+        description: 工作項目描述 (選填，會自動轉換為 HTML 格式)
         work_item_type: 工作項目類型 (例如: Bug, Task, User Story)
         wit_client: 工作項目追蹤客戶端
         area_path: 區域路徑 (選填)
@@ -335,6 +336,11 @@ def _create_work_item_impl(
         已格式化的字串，包含新建立的工作項目資訊
     """
     try:
+        # 自動轉換 description 為 HTML 格式，保留換行
+        if description and not (description.strip().startswith('<') and ('>' in description) and 
+              ('<html' in description.lower() or '<p>' in description.lower() or '<div' in description.lower())):
+            description = f"<div>{description.replace('\n', '<br>')}</div>"
+
         # 建立工作項目的欄位
         document = [
             {
@@ -402,24 +408,21 @@ def _upload_attachment_impl(
 
         # 取得檔案名稱
         file_name = os.path.basename(file_path)
-        
         # 讀取檔案內容為位元組
         with open(file_path, 'rb') as f:
             file_content = f.read()
-            
         # 建立位元組串流
         from io import BytesIO
         upload_stream = BytesIO(file_content)
-
         # 上傳附件
         attachment = wit_client.create_attachment(
             upload_stream=upload_stream,
             file_name=file_name,
             project=project
         )
-
         return attachment.url, file_name
-
+    except FileNotFoundError:
+        raise
     except Exception as e:
         raise Exception(f"上傳附件時發生錯誤: {str(e)}")
 
@@ -433,7 +436,7 @@ def _update_work_item_impl(
     area_path: Optional[str] = None,
     iteration_path: Optional[str] = None,
     assigned_to: Optional[str] = None,
-    tags: Optional[str] = None  # 新增 tags 參數
+    tags: Optional[str] = None
 ) -> str:
     """
     更新工作項目的實作。
@@ -442,7 +445,7 @@ def _update_work_item_impl(
         item_id: 工作項目 ID
         wit_client: 工作項目追蹤客戶端
         title: 工作項目標題 (選填)
-        description: 工作項目描述 (選填)
+        description: 工作項目描述 (選填，會自動轉換為 HTML 格式)
         state: 工作項目狀態 (選填)
         area_path: 區域路徑 (選填)
         iteration_path: 迭代路徑 (選填)
@@ -465,6 +468,12 @@ def _update_work_item_impl(
             })
             
         if description:
+            # 檢查是否已是 HTML 格式
+            if not (description.strip().startswith('<') and ('>' in description) and 
+                  ('<html' in description.lower() or '<p>' in description.lower() or '<div' in description.lower())):
+                # 自動轉換為 HTML 格式，保留換行
+                description = f"<div>{description.replace('\n', '<br>')}</div>"
+            
             document.append({
                 "op": "add",
                 "path": "/fields/System.Description",
@@ -567,6 +576,44 @@ def _update_work_item_with_attachment_impl(
 
     except Exception as e:
         return f"更新工作項目時發生錯誤: {str(e)}"
+
+
+def _add_work_item_comment_impl(
+    item_id: int,
+    comment: str,
+    wit_client: WorkItemTrackingClient,
+    project: Optional[str] = None
+) -> str:
+    """
+    替工作項目新增評論的實作。
+
+    Args:
+        item_id: 工作項目 ID
+        comment: 評論內容
+        wit_client: 工作項目追蹤客戶端
+        project: 專案名稱 (選填)
+            
+    Returns:
+        已格式化的字串，包含新增評論後的工作項目資訊
+    """
+    try:
+        # 如果沒有提供專案名稱，從工作項目取得
+        if not project:
+            work_item = wit_client.get_work_item(item_id)
+            if work_item and work_item.fields:
+                project = work_item.fields.get("System.TeamProject")
+                if not project:
+                    raise ValueError("無法確定專案名稱")
+        # 新增評論
+        wit_client.add_comment(
+            project=project,
+            work_item_id=item_id,
+            request={"text": comment}
+        )
+        # 取得更新後的工作項目資訊
+        return _get_work_item_impl(item_id, wit_client, detailed=True)
+    except Exception as e:
+        return f"新增評論時發生錯誤: {str(e)}"
 
 
 def register_tools(mcp) -> None:
@@ -673,7 +720,7 @@ def register_tools(mcp) -> None:
         Args:
             project: 專案名稱
             title: 工作項目標題
-            description: 工作項目描述
+            description: 工作項目描述 (選填，會自動轉換為 HTML 格式)
             work_item_type: 工作項目類型 (預設: Task)
             area_path: 區域路徑 (選填，例如: G11n\OKR)
             iteration_path: 迭代路徑 (選填，例如: G11n\Sprint 189)
@@ -712,7 +759,7 @@ def register_tools(mcp) -> None:
         Args:
             id: 工作項目 ID
             title: 工作項目標題 (選填)
-            description: 工作項目描述 (選填)
+            description: 工作項目描述 (選填，會自動轉換為 HTML 格式) (選填)
             state: 工作項目狀態 (選填)
             area_path: 區域路徑 (選填)
             iteration_path: 迭代路徑 (選填)
@@ -775,5 +822,28 @@ def register_tools(mcp) -> None:
                 wit_client
             )
             
+        except AzureDevOpsClientError as e:
+            return f"錯誤: {str(e)}"
+    
+    @mcp.tool()
+    def add_work_item_comment(
+        id: int,
+        comment: str,
+        project: Optional[str] = None
+    ) -> str:
+        """
+        替工作項目新增評論。
+
+        Args:
+            id: 工作項目 ID
+            comment: 評論內容
+            project: 專案名稱 (選填)
+            
+        Returns:
+            更新後的工作項目資訊
+        """
+        try:
+            wit_client = get_work_item_client()
+            return _add_work_item_comment_impl(id, comment, wit_client, project)
         except AzureDevOpsClientError as e:
             return f"錯誤: {str(e)}"
