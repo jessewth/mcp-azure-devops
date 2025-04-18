@@ -317,6 +317,7 @@ def _create_work_item_impl(
     description: str,
     work_item_type: str,
     wit_client: WorkItemTrackingClient,
+    acceptance_criteria: Optional[str] = None,
     area_path: Optional[str] = None,
     iteration_path: Optional[str] = None
 ) -> str:
@@ -329,6 +330,7 @@ def _create_work_item_impl(
         description: 工作項目描述 (選填，會自動轉換為 HTML 格式)
         work_item_type: 工作項目類型 (例如: Bug, Task, User Story)
         wit_client: 工作項目追蹤客戶端
+        acceptance_criteria: 驗收標準 (選填，會自動轉換為 HTML 格式)
         area_path: 區域路徑 (選填)
         iteration_path: 迭代路徑 (選填)
             
@@ -336,10 +338,8 @@ def _create_work_item_impl(
         已格式化的字串，包含新建立的工作項目資訊
     """
     try:
-        # 自動轉換 description 為 HTML 格式，保留換行
-        if description and not (description.strip().startswith('<') and ('>' in description) and 
-              ('<html' in description.lower() or '<p>' in description.lower() or '<div' in description.lower())):
-            description = f"<div>{description.replace('\n', '<br>')}</div>"
+        # 處理 description 的 HTML 轉換
+        description = _sanitize_description_html(description)
 
         # 建立工作項目的欄位
         document = [
@@ -377,6 +377,20 @@ def _create_work_item_impl(
             project=project,
             type=work_item_type
         )
+
+        # 處理選填的 Acceptance Criteria：
+        # 如果使用者提供驗收標準，先以 _sanitize_description_html 轉換為 HTML，保留換行，
+        # 再以單獨的 update_work_item 呼叫加入 Microsoft.VSTS.Common.AcceptanceCriteria 欄位
+        if acceptance_criteria:
+            ac_html = _sanitize_description_html(acceptance_criteria)
+            wit_client.update_work_item(
+                document=[{
+                    "op": "add",
+                    "path": "/fields/Microsoft.VSTS.Common.AcceptanceCriteria",
+                    "value": ac_html
+                }],
+                id=created_item.id
+            )
 
         # 回傳基本資訊
         return _format_work_item_basic(created_item)
@@ -436,7 +450,8 @@ def _update_work_item_impl(
     area_path: Optional[str] = None,
     iteration_path: Optional[str] = None,
     assigned_to: Optional[str] = None,
-    tags: Optional[str] = None
+    tags: Optional[str] = None, 
+    acceptance_criteria: Optional[str] = None
 ) -> str:
     """
     更新工作項目的實作。
@@ -451,6 +466,7 @@ def _update_work_item_impl(
         iteration_path: 迭代路徑 (選填)
         assigned_to: 指派給 (選填)
         tags: 標籤，多個標籤用分號分隔 (選填，例如: "tag1; tag2")
+        acceptance_criteria: 驗收標準 (選填，會自動轉換為 HTML 格式)
             
     Returns:
         已格式化的字串，包含更新後的工作項目資訊
@@ -468,12 +484,8 @@ def _update_work_item_impl(
             })
             
         if description:
-            # 檢查是否已是 HTML 格式
-            if not (description.strip().startswith('<') and ('>' in description) and 
-                  ('<html' in description.lower() or '<p>' in description.lower() or '<div' in description.lower())):
-                # 自動轉換為 HTML 格式，保留換行
-                description = f"<div>{description.replace('\n', '<br>')}</div>"
-            
+            # 處理 description 的 HTML 轉換
+            description = _sanitize_description_html(description)
             document.append({
                 "op": "add",
                 "path": "/fields/System.Description",
@@ -514,6 +526,16 @@ def _update_work_item_impl(
                 "op": "add",
                 "path": "/fields/System.Tags",
                 "value": tags
+            })
+
+        # 處理選填的 Acceptance Criteria：
+        # 若提供驗收標準，使用 _sanitize_description_html 轉成 HTML，並封裝至 Microsoft.VSTS.Common.AcceptanceCriteria 欄位
+        if acceptance_criteria:
+            ac_html = _sanitize_description_html(acceptance_criteria)
+            document.append({
+                "op": "add",
+                "path": "/fields/Microsoft.VSTS.Common.AcceptanceCriteria",
+                "value": ac_html
             })
 
         if not document:
@@ -604,11 +626,14 @@ def _add_work_item_comment_impl(
                 project = work_item.fields.get("System.TeamProject")
                 if not project:
                     raise ValueError("無法確定專案名稱")
+        # 處理評論內容的 HTML 轉換：
+        # 支援接受 HTML，若為純文字則自動轉為 <div> 保留換行
+        comment_html = _sanitize_description_html(comment)
         # 新增評論
         wit_client.add_comment(
             project=project,
             work_item_id=item_id,
-            request={"text": comment}
+            request={"text": comment_html}
         )
         # 取得更新後的工作項目資訊
         return _get_work_item_impl(item_id, wit_client, detailed=True)
@@ -710,6 +735,7 @@ def register_tools(mcp) -> None:
         project: str,
         title: str,
         description: str,
+        acceptance_criteria: Optional[str] = None,
         work_item_type: str = "Task",
         area_path: Optional[str] = None,
         iteration_path: Optional[str] = None
@@ -721,6 +747,7 @@ def register_tools(mcp) -> None:
             project: 專案名稱
             title: 工作項目標題
             description: 工作項目描述 (選填，會自動轉換為 HTML 格式)
+            acceptance_criteria: 驗收標準 (選填，會自動轉換為 HTML 格式)
             work_item_type: 工作項目類型 (預設: Task)
             area_path: 區域路徑 (選填，例如: G11n\OKR)
             iteration_path: 迭代路徑 (選填，例如: G11n\Sprint 189)
@@ -736,6 +763,7 @@ def register_tools(mcp) -> None:
                 description,
                 work_item_type,
                 wit_client,
+                acceptance_criteria,
                 area_path,
                 iteration_path
             )
@@ -751,7 +779,8 @@ def register_tools(mcp) -> None:
         area_path: Optional[str] = None,
         iteration_path: Optional[str] = None,
         assigned_to: Optional[str] = None,
-        tags: Optional[str] = None  # 新增 tags 參數
+        tags: Optional[str] = None,  # 新增 tags 參數
+        acceptance_criteria: Optional[str] = None
     ) -> str:
         """
         更新工作項目。
@@ -759,12 +788,14 @@ def register_tools(mcp) -> None:
         Args:
             id: 工作項目 ID
             title: 工作項目標題 (選填)
-            description: 工作項目描述 (選填，會自動轉換為 HTML 格式) (選填)
+            description: 工作項目描述 (選填，會自動轉換為 HTML 格式)
             state: 工作項目狀態 (選填)
             area_path: 區域路徑 (選填)
             iteration_path: 迭代路徑 (選填)
             assigned_to: 指派給 (選填)
-            
+            tags: 標籤，多個標籤用分號分隔 (選填，例如: "tag1; tag2")
+            acceptance_criteria: 驗收標準 (選填，會自動轉換為 HTML 格式)
+        
         Returns:
             已格式化的字串，包含更新後的工作項目資訊
         """
@@ -779,7 +810,8 @@ def register_tools(mcp) -> None:
                 area_path,
                 iteration_path,
                 assigned_to,
-                tags  # 加入 tags 參數
+                tags,
+                acceptance_criteria  # 加入 acceptance_criteria 參數
             )
         except AzureDevOpsClientError as e:
             return f"錯誤: {str(e)}"
@@ -836,7 +868,7 @@ def register_tools(mcp) -> None:
 
         Args:
             id: 工作項目 ID
-            comment: 評論內容
+            comment: 評論內容 (選填，支援 HTML，會自動轉換為 HTML 格式)
             project: 專案名稱 (選填)
             
         Returns:
@@ -847,3 +879,17 @@ def register_tools(mcp) -> None:
             return _add_work_item_comment_impl(id, comment, wit_client, project)
         except AzureDevOpsClientError as e:
             return f"錯誤: {str(e)}"
+
+# 共用函式：處理 description 的 HTML 轉換，保留換行符號
+def _sanitize_description_html(description: Optional[str]) -> Optional[str]:
+    """
+    檢查並將 description 自動轉換為 HTML 格式，保留換行符號。
+    """
+    if not description:
+        return description
+    desc_stripped = description.strip()
+    if desc_stripped.startswith('<') and '>' in desc_stripped and (
+        '<html' in desc_stripped.lower() or '<p>' in desc_stripped.lower() or '<div' in desc_stripped.lower()
+    ):
+        return description
+    return f"<div>{description.replace('\n', '<br>')}</div>"
