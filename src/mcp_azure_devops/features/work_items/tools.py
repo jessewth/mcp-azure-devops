@@ -892,4 +892,7 @@ def _sanitize_description_html(description: Optional[str]) -> Optional[str]:
         '<html' in desc_stripped.lower() or '<p>' in desc_stripped.lower() or '<div' in desc_stripped.lower()
     ):
         return description
-    return f"<div>{description.replace('\n', '<br>')}</div>"
+    
+    # 修正：將替換操作移到 f-string 外部
+    description_html = description.replace('\n', '<br>')
+    return f"<div>{description_html}</div>"
