@@ -124,6 +124,11 @@ def register_tools(mcp) -> None:
         - Examine all fields, relationships, and properties
         - Get the full information for analysis or reference
         
+        If the work item contains embedded images in its Description or other HTML fields 
+        (indicated by <img src> tags), use the get_work_item_attachments tool to retrieve 
+        and view these images separately. This is particularly useful for work items with 
+        rich content like screenshots, diagrams, or other visual information.
+        
         Args:
             id: The work item ID
             
