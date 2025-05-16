@@ -4,8 +4,9 @@ Attachment operations for Azure DevOps work items.
 This module provides MCP tools for uploading and attaching files to work items.
 """
 import os
+import re
 from io import BytesIO
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict
 
 from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient
 from azure.devops.v7_1.work_item_tracking.models import JsonPatchOperation
@@ -107,6 +108,61 @@ def _update_work_item_with_attachment_impl(
         return f"Error updating work item with attachment: {str(e)}"
 
 
+def _get_work_item_attachments_impl(
+    item_id: int,
+    wit_client: WorkItemTrackingClient,
+    project: Optional[str] = None
+) -> List[Dict[str, str]]:
+    """
+    Get all attachments for a work item, including those embedded in HTML fields.
+
+    Args:
+        item_id: Work item ID
+        wit_client: Work item tracking client
+        project: Optional project name
+            
+    Returns:
+        List of dictionaries with attachment details
+    """
+    try:
+        # Get the work item with all fields
+        work_item = wit_client.get_work_item(item_id, expand="all")
+        
+        attachments = []
+        
+        # Check for formal attachments in relations
+        if hasattr(work_item, 'relations') and work_item.relations:
+            for relation in work_item.relations:
+                if relation.rel == "AttachedFile":
+                    attachments.append({
+                        'url': relation.url,
+                        'name': relation.attributes.get('name', 'Unknown'),
+                        'comment': relation.attributes.get('comment', ''),
+                        'type': 'formal_attachment'
+                    })
+        
+        # Check for embedded images in HTML fields
+        html_fields = ["System.Description", "Microsoft.VSTS.Common.AcceptanceCriteria"]
+        for field in html_fields:
+            if field in work_item.fields:
+                html_content = work_item.fields[field]
+                if html_content:
+                    # Find all image URLs using regex
+                    img_urls = re.findall(r'<img\s+[^>]*src="([^"]+)"[^>]*>', html_content)
+                    for url in img_urls:
+                        file_name = url.split('?fileName=')[-1] if '?fileName=' in url else 'embedded_image.png'
+                        attachments.append({
+                            'url': url,
+                            'name': file_name,
+                            'field': field,
+                            'type': 'embedded_image'
+                        })
+        
+        return attachments
+    except Exception as e:
+        raise Exception(f"Error retrieving work item attachments: {str(e)}")
+
+
 def register_tools(mcp) -> None:
     """
     Register work item attachment tools with the MCP server.
@@ -168,3 +224,68 @@ def register_tools(mcp) -> None:
             return f"Error: {str(e)}"
         except Exception as e:
             return f"Error adding attachment: {str(e)}"
+            
+    @mcp.tool()
+    def get_work_item_attachments(
+        id: int,
+        project: Optional[str] = None
+    ) -> str:
+        """
+        Retrieves all attachments from a work item, including embedded images.
+        
+        Use this tool when you need to:
+        - Get links to files attached to a work item
+        - Find image URLs embedded in work item descriptions
+        - View a list of all graphical content in a work item
+        - Access diagrams or screenshots included in requirements
+        
+        Args:
+            id: The work item ID to retrieve attachments from
+            project: Optional project name
+            
+        Returns:
+            Formatted string containing all attachment information,
+            including URLs, names, and types (formal attachments vs
+            embedded images), formatted as markdown
+        """
+        try:
+            wit_client = get_work_item_client()
+            
+            # Get attachments
+            attachments = _get_work_item_attachments_impl(id, wit_client, project)
+            
+            # Format the response
+            if not attachments:
+                return f"No attachments or embedded images found for work item {id}."
+                
+            # Prepare markdown response
+            result = [f"# Attachments for Work Item {id}\n"]
+            
+            # Group by type
+            formal_attachments = [a for a in attachments if a.get('type') == 'formal_attachment']
+            embedded_images = [a for a in attachments if a.get('type') == 'embedded_image']
+            
+            if formal_attachments:
+                result.append("## Formal Attachments")
+                for idx, attachment in enumerate(formal_attachments, 1):
+                    result.append(f"### {idx}. {attachment['name']}")
+                    result.append(f"- URL: {attachment['url']}")
+                    if attachment.get('comment'):
+                        result.append(f"- Comment: {attachment['comment']}")
+                    result.append("")
+            
+            if embedded_images:
+                result.append("## Embedded Images")
+                for idx, image in enumerate(embedded_images, 1):
+                    result.append(f"### {idx}. {image['name']}")
+                    result.append(f"- URL: {image['url']}")
+                    result.append(f"- Located in: {image['field']}")
+                    result.append(f"- Preview: ![Image {idx}]({image['url']})")
+                    result.append("")
+            
+            return "\n".join(result)
+            
+        except AzureDevOpsClientError as e:
+            return f"Error: {str(e)}"
+        except Exception as e:
+            return f"Error retrieving attachments: {str(e)}"
