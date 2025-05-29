@@ -3,6 +3,7 @@ Read operations for Azure DevOps work items.
 
 This module provides MCP tools for retrieving work item information.
 """
+from typing import Union
 from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient
 
 from mcp_azure_devops.features.work_items.common import (
@@ -13,7 +14,7 @@ from mcp_azure_devops.features.work_items.formatting import format_work_item
 
 
 def _get_work_item_impl(
-    item_id: int | list[int], 
+    item_id: Union[int, float, list[Union[int, float]]], 
     wit_client: WorkItemTrackingClient,
     detailed: bool = True
 ) -> str:
@@ -29,13 +30,15 @@ def _get_work_item_impl(
         Formatted string containing work item information
     """
     try:
-        if isinstance(item_id, int):
+        if isinstance(item_id, (int, float)):
             # Handle single work item
+            item_id = int(item_id)  # Ensure integer conversion
             work_item = wit_client.get_work_item(item_id, expand="all")
             return format_work_item(work_item, detailed=detailed)
         else:
             # Handle list of work items
-            work_items = wit_client.get_work_items(ids=item_id,
+            item_ids = [int(id) for id in item_id]  # Ensure integer conversion
+            work_items = wit_client.get_work_items(ids=item_ids,
                                                    error_policy="omit",
                                                    expand="all")
             
@@ -52,10 +55,11 @@ def _get_work_item_impl(
                 
             return "\n\n".join(formatted_results)
     except Exception as e:
-        if isinstance(item_id, int):
+        if isinstance(item_id, (int, float)):
             return f"Error retrieving work item {item_id}: {str(e)}"
         else:
             return f"Error retrieving work items {item_id}: {str(e)}"
+
 
 def register_tools(mcp) -> None:
     """
@@ -66,7 +70,7 @@ def register_tools(mcp) -> None:
     """
     
     @mcp.tool()
-    def get_work_item(id: int | list[int]) -> str:
+    def get_work_item(id: Union[int, float, list[Union[int, float]]]) -> str:
         """
         Retrieves detailed information about one or multiple work items.
         
@@ -89,9 +93,9 @@ def register_tools(mcp) -> None:
             return _get_work_item_impl(id, wit_client, detailed=True)
         except AzureDevOpsClientError as e:
             return f"Error: {str(e)}"
-            
+    
     @mcp.tool()
-    def get_work_item_basic(id: int) -> str:
+    def get_work_item_basic(id: Union[int, float]) -> str:
         """
         Retrieves basic information about a work item.
         
@@ -113,9 +117,9 @@ def register_tools(mcp) -> None:
             return _get_work_item_impl(id, wit_client, detailed=False)
         except AzureDevOpsClientError as e:
             return f"Error: {str(e)}"
-
+    
     @mcp.tool()
-    def get_work_item_details(id: int) -> str:
+    def get_work_item_details(id: Union[int, float]) -> str:
         """
         Retrieves comprehensive information about a work item.
         

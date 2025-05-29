@@ -4,7 +4,7 @@ Create operations for Azure DevOps work items.
 This module provides MCP tools for creating work items.
 """
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient
 from azure.devops.v7_1.work_item_tracking.models import JsonPatchOperation
@@ -57,7 +57,7 @@ def _get_organization_url() -> str:
     return os.environ.get("AZURE_DEVOPS_ORGANIZATION_URL", "").rstrip('/')
 
 
-def _build_link_document(target_id: int, link_type: str, org_url: str) -> list:
+def _build_link_document(target_id: Union[int, float], link_type: str, org_url: str) -> list:
     """
     Build a document for creating a link between work items.
     
@@ -69,6 +69,9 @@ def _build_link_document(target_id: int, link_type: str, org_url: str) -> list:
     Returns:
         List of JsonPatchOperation objects
     """
+    # Ensure target_id is integer
+    target_id = int(target_id)
+    
     return [
         JsonPatchOperation(
             op="add",
@@ -86,9 +89,9 @@ def _create_work_item_impl(
     project: str,
     work_item_type: str,
     wit_client: WorkItemTrackingClient,
-    parent_id: Optional[int] = None,
+    parent_id: Optional[Union[int, float]] = None,
     acceptance_criteria: Optional[str] = None,
-    related_ids: Optional[list[int]] = None
+    related_ids: Optional[list[Union[int, float]]] = None
 ) -> str:
     """
     Implementation of creating a work item.
@@ -134,6 +137,7 @@ def _create_work_item_impl(
         org_url = _get_organization_url()
         # Parent link
         if parent_id:
+            parent_id = int(parent_id)  # Ensure integer conversion
             link_document = _build_link_document(
                 target_id=parent_id,
                 link_type="System.LinkTypes.Hierarchy-Reverse",
@@ -147,6 +151,7 @@ def _create_work_item_impl(
         # Related links
         if related_ids:
             for related_id in related_ids:
+                related_id = int(related_id)  # Ensure integer conversion
                 related_document = _build_link_document(
                     target_id=related_id,
                     link_type="System.LinkTypes.Related",
@@ -164,13 +169,13 @@ def _create_work_item_impl(
 
 
 def _update_work_item_impl(
-    id: int,
+    id: Union[int, float],
     fields: Dict[str, Any],
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None,
     acceptance_criteria: Optional[str] = None,
-    related_ids: Optional[list[int]] = None,
-    remove_related_ids: Optional[list[int]] = None
+    related_ids: Optional[list[Union[int, float]]] = None,
+    remove_related_ids: Optional[list[Union[int, float]]] = None
 ) -> str:
     """
     Implementation of updating a work item.
@@ -186,6 +191,9 @@ def _update_work_item_impl(
         Formatted string containing the updated work item details
     """
     document = _build_field_document(fields, "replace")
+    
+    # Ensure id is integer
+    id = int(id)
     
     # If acceptance criteria is provided, add it to the document
     if acceptance_criteria:
@@ -211,6 +219,7 @@ def _update_work_item_impl(
     if related_ids:
         org_url = _get_organization_url()
         for related_id in related_ids:
+            related_id = int(related_id)  # Ensure integer conversion
             related_document = _build_link_document(
                 target_id=related_id,
                 link_type="System.LinkTypes.Related",
@@ -225,6 +234,7 @@ def _update_work_item_impl(
     if remove_related_ids:
         org_url = _get_organization_url()
         for related_id in remove_related_ids:
+            related_id = int(related_id)  # Ensure integer conversion
             remove_document = [
                 JsonPatchOperation(
                     op="remove",
@@ -248,8 +258,8 @@ def _find_relation_index(work_item, related_id, org_url):
 
 
 def _add_link_to_work_item_impl(
-    source_id: int,
-    target_id: int,
+    source_id: Union[int, float],
+    target_id: Union[int, float],
     link_type: str,
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None,
@@ -269,6 +279,10 @@ def _add_link_to_work_item_impl(
     """
     # Get organization URL from environment
     org_url = _get_organization_url()
+    
+    # Ensure IDs are integers
+    source_id = int(source_id)
+    target_id = int(target_id)
     
     # Build link document with the full URL
     link_document = _build_link_document(target_id, link_type, org_url)
@@ -401,12 +415,12 @@ def register_tools(mcp) -> None:
         description: Optional[str] = None,
         state: Optional[str] = None,
         assigned_to: Optional[str] = None,
-        parent_id: Optional[int] = None,
-        related_ids: Optional[list[int]] = None,
+        parent_id: Optional[Union[int, float]] = None,
+        related_ids: Optional[list[Union[int, float]]] = None,
         iteration_path: Optional[str] = None,
         area_path: Optional[str] = None,
         story_points: Optional[float] = None,
-        priority: Optional[int] = None,
+        priority: Optional[Union[int, float]] = None,
         tags: Optional[str] = None,
         acceptance_criteria: Optional[str] = None,
     ) -> str:
@@ -486,7 +500,7 @@ def register_tools(mcp) -> None:
     
     @mcp.tool()
     def update_work_item(
-        id: int,
+        id: Union[int, float],
         fields: Optional[Dict[str, Any]] = None,
         project: Optional[str] = None,
         title: Optional[str] = None,
@@ -496,11 +510,11 @@ def register_tools(mcp) -> None:
         iteration_path: Optional[str] = None,
         area_path: Optional[str] = None,
         story_points: Optional[float] = None,
-        priority: Optional[int] = None,
+        priority: Optional[Union[int, float]] = None,
         tags: Optional[str] = None,
         acceptance_criteria: Optional[str] = None,
-        related_ids: Optional[list[int]] = None,
-        remove_related_ids: Optional[list[int]] = None
+        related_ids: Optional[list[Union[int, float]]] = None,
+        remove_related_ids: Optional[list[Union[int, float]]] = None
     ) -> str:
         """
         Modifies an existing work item's fields and properties.
@@ -578,8 +592,8 @@ def register_tools(mcp) -> None:
     
     @mcp.tool()
     def add_parent_child_link(
-        parent_id: int,
-        child_id: int,
+        parent_id: Union[int, float],
+        child_id: Union[int, float],
         project: Optional[str] = None,
     ) -> str:
         """
@@ -607,6 +621,10 @@ def register_tools(mcp) -> None:
         """
         try:
             wit_client = get_work_item_client()
+            
+            # Ensure IDs are integers
+            parent_id = int(parent_id)
+            child_id = int(child_id)
             
             return _add_link_to_work_item_impl(
                 source_id=child_id,
