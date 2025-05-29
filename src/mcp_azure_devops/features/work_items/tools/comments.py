@@ -3,7 +3,7 @@ Comment operations for Azure DevOps work items.
 
 This module provides MCP tools for retrieving and adding work item comments.
 """
-from typing import Optional
+from typing import Optional, Union
 
 from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient
 from azure.devops.v7_1.work_item_tracking.models import CommentCreate
@@ -46,7 +46,7 @@ def _format_comment(comment) -> str:
 
 
 def _get_project_for_work_item(
-    item_id: int,
+    item_id: Union[int, float],
     wit_client: WorkItemTrackingClient
 ) -> Optional[str]:
     """
@@ -60,7 +60,7 @@ def _get_project_for_work_item(
         Project name or None if not found
     """
     try:
-        work_item = wit_client.get_work_item(item_id)
+        work_item = wit_client.get_work_item(int(item_id))
         if work_item and work_item.fields:
             return work_item.fields.get("System.TeamProject")
     except Exception:
@@ -70,7 +70,7 @@ def _get_project_for_work_item(
 
 
 def _get_work_item_comments_impl(
-    item_id: int,
+    item_id: Union[int, float],
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None
 ) -> str:
@@ -90,10 +90,10 @@ def _get_work_item_comments_impl(
         project = _get_project_for_work_item(item_id, wit_client)
         
         if not project:
-            return f"Error retrieving work item {item_id} to determine project"
+            return f"Error retrieving work item {int(item_id)} to determine project"
     
     # Get comments using the project if available
-    comments = wit_client.get_comments(project=project, work_item_id=item_id)
+    comments = wit_client.get_comments(project=project, work_item_id=int(item_id))
     
     # Format the comments
     formatted_comments = [
@@ -107,7 +107,7 @@ def _get_work_item_comments_impl(
 
 
 def _add_work_item_comment_impl(
-    item_id: int,
+    item_id: Union[int, float],
     text: str,
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None
@@ -129,7 +129,7 @@ def _add_work_item_comment_impl(
         project = _get_project_for_work_item(item_id, wit_client)
         
         if not project:
-            return f"Error retrieving work item {item_id} to determine project"
+            return f"Error retrieving work item {int(item_id)} to determine project"
     
     # Process comment content for HTML conversion
     text_html = sanitize_description_html(text)
@@ -141,7 +141,7 @@ def _add_work_item_comment_impl(
     new_comment = wit_client.add_comment(
         request=comment_request, 
         project=project, 
-        work_item_id=item_id
+        work_item_id=int(item_id)
     )
     
     return f"Comment added successfully.\n\n{_format_comment(new_comment)}"
@@ -157,7 +157,7 @@ def register_tools(mcp) -> None:
     
     @mcp.tool()
     def get_work_item_comments(
-        id: int,
+        id: Union[int, float],
         project: Optional[str] = None
     ) -> str:
         """
@@ -181,14 +181,14 @@ def register_tools(mcp) -> None:
         """
         try:
             wit_client = get_work_item_client()
-            return _get_work_item_comments_impl(id, wit_client, project)
+            return _get_work_item_comments_impl(int(id), wit_client, project)
         except AzureDevOpsClientError as e:
             return f"Error: {str(e)}"
     
     
     @mcp.tool()
     def add_work_item_comment(
-        id: int,
+        id: Union[int, float],
         text: str,
         project: Optional[str] = None
     ) -> str:
@@ -218,6 +218,6 @@ def register_tools(mcp) -> None:
         """
         try:
             wit_client = get_work_item_client()
-            return _add_work_item_comment_impl(id, text, wit_client, project)
+            return _add_work_item_comment_impl(int(id), text, wit_client, project)
         except AzureDevOpsClientError as e:
             return f"Error: {str(e)}"

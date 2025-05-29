@@ -6,7 +6,7 @@ This module provides MCP tools for uploading and attaching files to work items.
 import os
 import re
 from io import BytesIO
-from typing import Optional, Tuple, List, Dict
+from typing import Optional, Tuple, List, Dict, Union
 
 from azure.devops.v7_1.work_item_tracking import WorkItemTrackingClient
 from azure.devops.v7_1.work_item_tracking.models import JsonPatchOperation
@@ -64,7 +64,7 @@ def _upload_attachment_impl(
 
 
 def _update_work_item_with_attachment_impl(
-    item_id: int,
+    item_id: Union[int, float],
     attachment_url: str,
     attachment_name: str,
     comment: Optional[str],
@@ -81,9 +81,12 @@ def _update_work_item_with_attachment_impl(
         wit_client: Work item tracking client
             
     Returns:
-        Formatted string containing updated work item information
+        Formatted string containing updated work item information    
     """
     try:
+        # Ensure ID is integer
+        item_id = int(item_id)
+        
         # Create the update document
         document = [{
             "op": "add",
@@ -109,7 +112,7 @@ def _update_work_item_with_attachment_impl(
 
 
 def _get_work_item_attachments_impl(
-    item_id: int,
+    item_id: Union[int, float],
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None
 ) -> List[Dict[str, str]]:
@@ -122,9 +125,12 @@ def _get_work_item_attachments_impl(
         project: Optional project name
             
     Returns:
-        List of dictionaries with attachment details
+        List of dictionaries with attachment details    
     """
     try:
+        # Ensure ID is integer
+        item_id = int(item_id)
+        
         # Get the work item with all fields
         work_item = wit_client.get_work_item(item_id, expand="all")
         
@@ -168,12 +174,12 @@ def register_tools(mcp) -> None:
     Register work item attachment tools with the MCP server.
     
     Args:
-        mcp: The FastMCP server instance
+        mcp: The FastMCP server instance    
     """
     
     @mcp.tool()
     def add_work_item_attachment(
-        id: int,
+        id: Union[int, float],
         file_path: str,
         comment: Optional[str] = None,
         project: Optional[str] = None
@@ -227,7 +233,7 @@ def register_tools(mcp) -> None:
             
     @mcp.tool()
     def get_work_item_attachments(
-        id: int,
+        id: Union[int, float],
         project: Optional[str] = None
     ) -> str:
         """
