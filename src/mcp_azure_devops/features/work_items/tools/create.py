@@ -102,7 +102,7 @@ def _create_work_item_impl(
         work_item_type: Type of work item (e.g., "User Story", "Bug", "Task")
         wit_client: Work item tracking client
         parent_id: Optional ID of parent work item for hierarchy
-        acceptance_criteria: Optional acceptance criteria (will be converted to HTML)
+        acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
         
     Returns:
         Formatted string containing the created work item details
@@ -185,7 +185,7 @@ def _update_work_item_impl(
         fields: Dictionary of field name/value pairs to update
         wit_client: Work item tracking client
         project: Optional project name or ID
-        acceptance_criteria: Optional acceptance criteria (will be converted to HTML)
+        acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
         
     Returns:
         Formatted string containing the updated work item details
@@ -444,7 +444,7 @@ def register_tools(mcp) -> None:
                 "Task")
             fields: Optional dictionary of additional field name/value pairs 
                 to set
-            description: Optional description of the work item
+            description: Optional description of the work item. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
             state: Optional initial state for the work item
             assigned_to: Optional user email to assign the work item to
             parent_id: Optional ID of parent work item for hierarchy
@@ -453,7 +453,7 @@ def register_tools(mcp) -> None:
             story_points: Optional story points value
             priority: Optional priority value
             tags: Optional tags as comma-separated string
-            acceptance_criteria: Optional acceptance criteria (will be converted to HTML)
+            acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
             
         Returns:
             Formatted string containing the created work item details including
@@ -537,7 +537,7 @@ def register_tools(mcp) -> None:
             fields: Optional dictionary of field name/value pairs to update
             project: Optional project name or ID
             title: Optional new title for the work item
-            description: Optional new description
+            description: Optional new description. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
             state: Optional new state
             assigned_to: Optional user email to assign to
             iteration_path: Optional new iteration path
@@ -545,7 +545,7 @@ def register_tools(mcp) -> None:
             story_points: Optional new story points value
             priority: Optional new priority value
             tags: Optional new tags as comma-separated string
-            acceptance_criteria: Optional acceptance criteria (will be converted to HTML)
+            acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
             
         Returns:
             Formatted string containing the updated work item details with
