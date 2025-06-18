@@ -208,7 +208,7 @@ def register_tools(mcp) -> None:
         
         Args:
             id: The work item ID
-            text: The text of the comment (supports markdown formatting)
+            text: The text of the comment. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
             project: Optional project name. If not provided, will be 
                 determined from the work item.
             
