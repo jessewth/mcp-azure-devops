@@ -64,7 +64,7 @@ def _upload_attachment_impl(
 
 
 def _update_work_item_with_attachment_impl(
-    item_id: Union[int, float],
+    item_id: int,
     attachment_url: str,
     attachment_name: str,
     comment: Optional[str],
@@ -74,7 +74,9 @@ def _update_work_item_with_attachment_impl(
     Update a work item with an attachment.
 
     Args:
-        item_id: Work item ID
+        item_id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
         attachment_url: Attachment URL
         attachment_name: Attachment name
         comment: Optional comment about the attachment
@@ -84,9 +86,6 @@ def _update_work_item_with_attachment_impl(
         Formatted string containing updated work item information    
     """
     try:
-        # Ensure ID is integer
-        item_id = int(item_id)
-        
         # Create the update document
         document = [{
             "op": "add",
@@ -112,7 +111,7 @@ def _update_work_item_with_attachment_impl(
 
 
 def _get_work_item_attachments_impl(
-    item_id: Union[int, float],
+    item_id: int,
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None
 ) -> List[Dict[str, str]]:
@@ -120,7 +119,9 @@ def _get_work_item_attachments_impl(
     Get all attachments for a work item, including those embedded in HTML fields.
 
     Args:
-        item_id: Work item ID
+        item_id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
         wit_client: Work item tracking client
         project: Optional project name
             
@@ -128,9 +129,6 @@ def _get_work_item_attachments_impl(
         List of dictionaries with attachment details    
     """
     try:
-        # Ensure ID is integer
-        item_id = int(item_id)
-        
         # Get the work item with all fields
         work_item = wit_client.get_work_item(item_id, expand="all")
         
@@ -179,7 +177,7 @@ def register_tools(mcp) -> None:
     
     @mcp.tool()
     def add_work_item_attachment(
-        id: Union[int, float],
+        id: int,
         file_path: str,
         comment: Optional[str] = None,
         project: Optional[str] = None
@@ -198,7 +196,9 @@ def register_tools(mcp) -> None:
         File size limits may apply based on your organization settings.
         
         Args:
-            id: The work item ID to attach the file to
+            id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
             file_path: Full path to the file on the local system
             comment: Optional comment explaining the attachment
             project: Optional project name
@@ -233,7 +233,7 @@ def register_tools(mcp) -> None:
             
     @mcp.tool()
     def get_work_item_attachments(
-        id: Union[int, float],
+        id: int,
         project: Optional[str] = None
     ) -> str:
         """
@@ -246,7 +246,9 @@ def register_tools(mcp) -> None:
         - Access diagrams or screenshots included in requirements
         
         Args:
-            id: The work item ID to retrieve attachments from
+            id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
             project: Optional project name
             
         Returns:

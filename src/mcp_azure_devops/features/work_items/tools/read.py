@@ -14,7 +14,7 @@ from mcp_azure_devops.features.work_items.formatting import format_work_item
 
 
 def _get_work_item_impl(
-    item_id: Union[int, float, list[Union[int, float]]], 
+    item_id: Union[int, list[int]], 
     wit_client: WorkItemTrackingClient,
     detailed: bool = True
 ) -> str:
@@ -22,7 +22,8 @@ def _get_work_item_impl(
     Implementation of work item retrieval.
     
     Args:
-        item_id: The work item ID or list of IDs
+        item_id: The work item ID (integer) or list of work item IDs (integers).
+                Examples: 502199 or [502199, 502200, 502201]
         wit_client: Work item tracking client
         detailed: Whether to return detailed information
             
@@ -30,9 +31,8 @@ def _get_work_item_impl(
         Formatted string containing work item information
     """
     try:
-        if isinstance(item_id, (int, float)):
+        if isinstance(item_id, int):
             # Handle single work item
-            item_id = int(item_id)  # Ensure integer conversion
             work_item = wit_client.get_work_item(item_id, expand="all")
             return format_work_item(work_item, detailed=detailed)
         else:
@@ -55,7 +55,7 @@ def _get_work_item_impl(
                 
             return "\n\n".join(formatted_results)
     except Exception as e:
-        if isinstance(item_id, (int, float)):
+        if isinstance(item_id, int):
             return f"Error retrieving work item {item_id}: {str(e)}"
         else:
             return f"Error retrieving work items {item_id}: {str(e)}"
@@ -70,7 +70,7 @@ def register_tools(mcp) -> None:
     """
     
     @mcp.tool()
-    def get_work_item(id: Union[int, float, list[Union[int, float]]]) -> str:
+    def get_work_item(id: Union[int, list[int]]) -> str:
         """
         Retrieves detailed information about one or multiple work items.
         
@@ -81,7 +81,8 @@ def register_tools(mcp) -> None:
         - Access the full description and custom fields of work items
         
         Args:
-            id: The work item ID or a list of work item IDs
+            id: The work item ID (integer) or a list of work item IDs (integers).
+                Examples: 502199 or [502199, 502200, 502201]
             
         Returns:
             Formatted string containing comprehensive information for the
@@ -95,7 +96,7 @@ def register_tools(mcp) -> None:
             return f"Error: {str(e)}"
     
     @mcp.tool()
-    def get_work_item_basic(id: Union[int, float]) -> str:
+    def get_work_item_basic(id: int) -> str:
         """
         Retrieves basic information about a work item.
         
@@ -105,7 +106,9 @@ def register_tools(mcp) -> None:
         - Get a concise summary without all details
         
         Args:
-            id: The work item ID
+            id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
             
         Returns:
             Formatted string containing basic information for the
@@ -119,7 +122,7 @@ def register_tools(mcp) -> None:
             return f"Error: {str(e)}"
     
     @mcp.tool()
-    def get_work_item_details(id: Union[int, float]) -> str:
+    def get_work_item_details(id: int) -> str:
         """
         Retrieves comprehensive information about a work item.
         
@@ -134,7 +137,9 @@ def register_tools(mcp) -> None:
         rich content like screenshots, diagrams, or other visual information.
         
         Args:
-            id: The work item ID
+            id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
             
         Returns:
             Formatted string containing comprehensive information for the
