@@ -57,20 +57,21 @@ def _get_organization_url() -> str:
     return os.environ.get("AZURE_DEVOPS_ORGANIZATION_URL", "").rstrip('/')
 
 
-def _build_link_document(target_id: Union[int, float], link_type: str, org_url: str) -> list:
+def _build_link_document(target_id: int, link_type: str, org_url: str) -> list:
     """
     Build a document for creating a link between work items.
     
     Args:
-        target_id: ID of the target work item to link to
+        target_id: ID of the target work item to link to (integer). Example: 502199
+                  This should be a positive integer representing the unique
+                  identifier of the work item in Azure DevOps.
         link_type: Type of link to create
         org_url: Base organization URL
         
     Returns:
         List of JsonPatchOperation objects
     """
-    # Ensure target_id is integer
-    target_id = int(target_id)
+
     
     return [
         JsonPatchOperation(
@@ -89,9 +90,9 @@ def _create_work_item_impl(
     project: str,
     work_item_type: str,
     wit_client: WorkItemTrackingClient,
-    parent_id: Optional[Union[int, float]] = None,
+    parent_id: Optional[int] = None,
     acceptance_criteria: Optional[str] = None,
-    related_ids: Optional[list[Union[int, float]]] = None
+    related_ids: Optional[list[int]] = None
 ) -> str:
     """
     Implementation of creating a work item.
@@ -101,8 +102,12 @@ def _create_work_item_impl(
         project: The project name or ID
         work_item_type: Type of work item (e.g., "User Story", "Bug", "Task")
         wit_client: Work item tracking client
-        parent_id: Optional ID of parent work item for hierarchy
+        parent_id: Optional ID of parent work item for hierarchy (integer). Example: 502199
+                  This should be a positive integer representing the unique
+                  identifier of the parent work item in Azure DevOps.
         acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
+        related_ids: Optional list of work item IDs to link as related (integers). Example: [502199, 502200]
+                    Each ID should be a positive integer representing work items in Azure DevOps.
         
     Returns:
         Formatted string containing the created work item details
@@ -169,31 +174,34 @@ def _create_work_item_impl(
 
 
 def _update_work_item_impl(
-    id: Union[int, float],
+    id: int,
     fields: Dict[str, Any],
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None,
     acceptance_criteria: Optional[str] = None,
-    related_ids: Optional[list[Union[int, float]]] = None,
-    remove_related_ids: Optional[list[Union[int, float]]] = None
+    related_ids: Optional[list[int]] = None,
+    remove_related_ids: Optional[list[int]] = None
 ) -> str:
     """
     Implementation of updating a work item.
     
     Args:
-        id: The ID of the work item to update
+        id: The ID of the work item to update (integer). Example: 502199
+            This should be a positive integer representing the unique
+            identifier of the work item in Azure DevOps.
         fields: Dictionary of field name/value pairs to update
         wit_client: Work item tracking client
         project: Optional project name or ID
         acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
+        related_ids: Optional list of work item IDs to link as related (integers). Example: [502199, 502200]
+                    Each ID should be a positive integer representing work items in Azure DevOps.
+        remove_related_ids: Optional list of work item IDs to unlink (integers). Example: [502199, 502200]
+                           Each ID should be a positive integer representing work items in Azure DevOps.
         
     Returns:
         Formatted string containing the updated work item details
     """
     document = _build_field_document(fields, "replace")
-    
-    # Ensure id is integer
-    id = int(id)
     
     # If acceptance criteria is provided, add it to the document
     if acceptance_criteria:
@@ -258,8 +266,8 @@ def _find_relation_index(work_item, related_id, org_url):
 
 
 def _add_link_to_work_item_impl(
-    source_id: Union[int, float],
-    target_id: Union[int, float],
+    source_id: int,
+    target_id: int,
     link_type: str,
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None,
@@ -268,8 +276,12 @@ def _add_link_to_work_item_impl(
     Implementation of adding a link between work items.
     
     Args:
-        source_id: ID of the source work item
-        target_id: ID of the target work item
+        source_id: ID of the source work item (integer). Example: 502199
+                  This should be a positive integer representing the unique
+                  identifier of the source work item in Azure DevOps.
+        target_id: ID of the target work item (integer). Example: 502200
+                  This should be a positive integer representing the unique
+                  identifier of the target work item in Azure DevOps.
         link_type: Type of link to create
         wit_client: Work item tracking client
         project: Optional project name or ID
@@ -415,12 +427,12 @@ def register_tools(mcp) -> None:
         description: Optional[str] = None,
         state: Optional[str] = None,
         assigned_to: Optional[str] = None,
-        parent_id: Optional[Union[int, float]] = None,
-        related_ids: Optional[list[Union[int, float]]] = None,
+        parent_id: Optional[int] = None,
+        related_ids: Optional[list[int]] = None,
         iteration_path: Optional[str] = None,
         area_path: Optional[str] = None,
         story_points: Optional[float] = None,
-        priority: Optional[Union[int, float]] = None,
+        priority: Optional[int] = None,
         tags: Optional[str] = None,
         acceptance_criteria: Optional[str] = None,
     ) -> str:
@@ -500,7 +512,7 @@ def register_tools(mcp) -> None:
     
     @mcp.tool()
     def update_work_item(
-        id: Union[int, float],
+        id: int,
         fields: Optional[Dict[str, Any]] = None,
         project: Optional[str] = None,
         title: Optional[str] = None,
@@ -510,11 +522,11 @@ def register_tools(mcp) -> None:
         iteration_path: Optional[str] = None,
         area_path: Optional[str] = None,
         story_points: Optional[float] = None,
-        priority: Optional[Union[int, float]] = None,
+        priority: Optional[int] = None,
         tags: Optional[str] = None,
         acceptance_criteria: Optional[str] = None,
-        related_ids: Optional[list[Union[int, float]]] = None,
-        remove_related_ids: Optional[list[Union[int, float]]] = None
+        related_ids: Optional[list[int]] = None,
+        remove_related_ids: Optional[list[int]] = None
     ) -> str:
         """
         Modifies an existing work item's fields and properties.
@@ -592,8 +604,8 @@ def register_tools(mcp) -> None:
     
     @mcp.tool()
     def add_parent_child_link(
-        parent_id: Union[int, float],
-        child_id: Union[int, float],
+        parent_id: int,
+        child_id: int,
         project: Optional[str] = None,
     ) -> str:
         """

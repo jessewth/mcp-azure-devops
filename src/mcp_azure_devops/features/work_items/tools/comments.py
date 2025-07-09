@@ -46,21 +46,23 @@ def _format_comment(comment) -> str:
 
 
 def _get_project_for_work_item(
-    item_id: Union[int, float],
+    item_id: int,
     wit_client: WorkItemTrackingClient
 ) -> Optional[str]:
     """
     Get the project name for a work item.
     
     Args:
-        item_id: The work item ID
+        item_id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
         wit_client: Work item tracking client
             
     Returns:
         Project name or None if not found
     """
     try:
-        work_item = wit_client.get_work_item(int(item_id))
+        work_item = wit_client.get_work_item(item_id)
         if work_item and work_item.fields:
             return work_item.fields.get("System.TeamProject")
     except Exception:
@@ -70,7 +72,7 @@ def _get_project_for_work_item(
 
 
 def _get_work_item_comments_impl(
-    item_id: Union[int, float],
+    item_id: int,
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None
 ) -> str:
@@ -78,7 +80,9 @@ def _get_work_item_comments_impl(
     Implementation of work item comments retrieval.
     
     Args:
-        item_id: The work item ID
+        item_id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
         wit_client: Work item tracking client
         project: Optional project name
             
@@ -90,10 +94,10 @@ def _get_work_item_comments_impl(
         project = _get_project_for_work_item(item_id, wit_client)
         
         if not project:
-            return f"Error retrieving work item {int(item_id)} to determine project"
+            return f"Error retrieving work item {item_id} to determine project"
     
     # Get comments using the project if available
-    comments = wit_client.get_comments(project=project, work_item_id=int(item_id))
+    comments = wit_client.get_comments(project=project, work_item_id=item_id)
     
     # Format the comments
     formatted_comments = [
@@ -107,7 +111,7 @@ def _get_work_item_comments_impl(
 
 
 def _add_work_item_comment_impl(
-    item_id: Union[int, float],
+    item_id: int,
     text: str,
     wit_client: WorkItemTrackingClient,
     project: Optional[str] = None
@@ -116,7 +120,9 @@ def _add_work_item_comment_impl(
     Implementation of work item comment addition.
     
     Args:
-        item_id: The work item ID
+        item_id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
         text: Comment text to add
         wit_client: Work item tracking client
         project: Optional project name
@@ -129,7 +135,7 @@ def _add_work_item_comment_impl(
         project = _get_project_for_work_item(item_id, wit_client)
         
         if not project:
-            return f"Error retrieving work item {int(item_id)} to determine project"
+            return f"Error retrieving work item {item_id} to determine project"
     
     # Process comment content for HTML conversion
     text_html = sanitize_description_html(text)
@@ -141,7 +147,7 @@ def _add_work_item_comment_impl(
     new_comment = wit_client.add_comment(
         request=comment_request, 
         project=project, 
-        work_item_id=int(item_id)
+        work_item_id=item_id
     )
     
     return f"Comment added successfully.\n\n{_format_comment(new_comment)}"
@@ -157,7 +163,7 @@ def register_tools(mcp) -> None:
     
     @mcp.tool()
     def get_work_item_comments(
-        id: Union[int, float],
+        id: int,
         project: Optional[str] = None
     ) -> str:
         """
@@ -170,7 +176,9 @@ def register_tools(mcp) -> None:
         - Understand the context and evolution of a work item
         
         Args:
-            id: The work item ID
+            id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
             project: Optional project name. If not provided, will be 
                 determined from the work item.
             
@@ -181,14 +189,14 @@ def register_tools(mcp) -> None:
         """
         try:
             wit_client = get_work_item_client()
-            return _get_work_item_comments_impl(int(id), wit_client, project)
+            return _get_work_item_comments_impl(id, wit_client, project)
         except AzureDevOpsClientError as e:
             return f"Error: {str(e)}"
     
     
     @mcp.tool()
     def add_work_item_comment(
-        id: Union[int, float],
+        id: int,
         text: str,
         project: Optional[str] = None
     ) -> str:
@@ -207,7 +215,9 @@ def register_tools(mcp) -> None:
         Access Token used for authentication.
         
         Args:
-            id: The work item ID
+            id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
             text: The text of the comment. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
             project: Optional project name. If not provided, will be 
                 determined from the work item.
@@ -218,6 +228,6 @@ def register_tools(mcp) -> None:
         """
         try:
             wit_client = get_work_item_client()
-            return _add_work_item_comment_impl(int(id), text, wit_client, project)
+            return _add_work_item_comment_impl(id, text, wit_client, project)
         except AzureDevOpsClientError as e:
             return f"Error: {str(e)}"
