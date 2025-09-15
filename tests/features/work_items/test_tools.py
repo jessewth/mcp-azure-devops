@@ -1,11 +1,18 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from azure.devops.v7_1.work_item_tracking.models import WorkItem, WorkItemReference, Wiql, ReferenceLinks
-from mcp_azure_devops.features.work_items.tools import (
-    _query_work_items_impl,
-    _get_work_item_impl,
-    _get_work_item_comments_impl
+from unittest.mock import MagicMock
+
+from azure.devops.v7_1.work_item_tracking.models import (
+    WorkItem,
+    WorkItemReference,
 )
+
+from mcp_azure_devops.features.work_items.tools.comments import (
+    _get_work_item_comments_impl,
+)
+from mcp_azure_devops.features.work_items.tools.query import (
+    _query_work_items_impl,
+)
+from mcp_azure_devops.features.work_items.tools.read import _get_work_item_impl
+
 
 # Tests for _query_work_items_impl
 def test_query_work_items_impl_no_results():
@@ -48,17 +55,21 @@ def test_query_work_items_impl_with_results():
         "System.State": "Closed"
     }
     
-    mock_client.get_work_items.return_value = [mock_work_item1, mock_work_item2]
+    mock_client.get_work_items.return_value = [
+        mock_work_item1, mock_work_item2]
     
     result = _query_work_items_impl("SELECT * FROM WorkItems", 10, mock_client)
     
-    # Check that the result contains the expected basic info formatting
-    assert "# Work Item 123: Test Bug" in result
-    assert "Type: Bug" in result
-    assert "State: Active" in result
-    assert "# Work Item 456: Test Task" in result
-    assert "Type: Task" in result
-    assert "State: Closed" in result
+    # Check that the result contains the expected formatting 
+    # per format_work_item
+    assert "# Work Item 123" in result
+    assert "- **System.WorkItemType**: Bug" in result
+    assert "- **System.Title**: Test Bug" in result
+    assert "- **System.State**: Active" in result
+    assert "# Work Item 456" in result
+    assert "- **System.WorkItemType**: Task" in result
+    assert "- **System.Title**: Test Task" in result
+    assert "- **System.State**: Closed" in result
 
 
 # Tests for _get_work_item_impl
@@ -77,13 +88,14 @@ def test_get_work_item_impl_basic():
     }
     mock_client.get_work_item.return_value = mock_work_item
     
-    result = _get_work_item_impl(123, mock_client, detailed=False)
+    result = _get_work_item_impl(123, mock_client)
     
     # Check that the result contains expected basic info
-    assert "# Work Item 123: Test Bug" in result
-    assert "Type: Bug" in result
-    assert "State: Active" in result
-    assert "Project: Test Project" in result
+    assert "# Work Item 123" in result
+    assert "- **System.WorkItemType**: Bug" in result
+    assert "- **System.Title**: Test Bug" in result
+    assert "- **System.State**: Active" in result
+    assert "- **System.TeamProject**: Test Project" in result
 
 def test_get_work_item_impl_detailed():
     """Test retrieving detailed work item info."""
@@ -98,7 +110,10 @@ def test_get_work_item_impl_detailed():
         "System.State": "Active",
         "System.TeamProject": "Test Project",
         "System.Description": "This is a description",
-        "System.AssignedTo": {"displayName": "Test User", "uniqueName": "test@example.com"},
+        "System.AssignedTo": {
+            "displayName": "Test User", 
+            "uniqueName": "test@example.com"
+        },
         "System.CreatedBy": {"displayName": "Creator User"},
         "System.CreatedDate": "2023-01-01",
         "System.IterationPath": "Project\\Sprint 1",
@@ -107,23 +122,24 @@ def test_get_work_item_impl_detailed():
     }
     mock_client.get_work_item.return_value = mock_work_item
     
-    result = _get_work_item_impl(123, mock_client, detailed=True)
+    result = _get_work_item_impl(123, mock_client)
     
     # Check that the result contains both basic and detailed info
-    assert "# Work Item 123: Test Bug" in result
-    assert "Type: Bug" in result
-    assert "Description" in result
-    assert "This is a description" in result
-    assert "Assigned To: Test User (test@example.com)" in result
-    assert "Created By: Creator User" in result
-    assert "Iteration: Project\\Sprint 1" in result
+    assert "# Work Item 123" in result
+    assert "- **System.WorkItemType**: Bug" in result
+    assert "- **System.Description**: This is a description" in result
+    assert "- **System.AssignedTo**: Test User (test@example.com)" in result
+    assert "- **System.CreatedBy**: Creator User" in result
+    assert "- **System.IterationPath**: Project\\Sprint 1" in result
+    assert "- **System.AreaPath**: Project\\Area" in result
+    assert "- **System.Tags**: tag1; tag2" in result
 
 def test_get_work_item_impl_error():
     """Test error handling in get_work_item_impl."""
     mock_client = MagicMock()
     mock_client.get_work_item.side_effect = Exception("Test error")
     
-    result = _get_work_item_impl(123, mock_client, detailed=False)
+    result = _get_work_item_impl(123, mock_client)
     
     assert "Error retrieving work item 123: Test error" in result
 
