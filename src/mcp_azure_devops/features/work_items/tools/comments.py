@@ -214,7 +214,7 @@ def register_tools(mcp) -> None:
             id: The work item ID (integer). Example: 502199
                 This should be a positive integer representing the unique
                 identifier of the work item in Azure DevOps.
-            text: The text of the comment. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
+            text: The text of the comment. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
             project: Optional project name. If not provided, will be
                 determined from the work item.
 

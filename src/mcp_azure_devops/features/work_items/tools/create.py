@@ -107,7 +107,7 @@ def _create_work_item_impl(
         parent_id: Optional ID of parent work item for hierarchy (integer). Example: 502199
                   This should be a positive integer representing the unique
                   identifier of the parent work item in Azure DevOps.
-        acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
+        acceptance_criteria: Optional acceptance criteria. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
         related_ids: Optional list of work item IDs to link as related (integers). Example: [502199, 502200]
                     Each ID should be a positive integer representing work items in Azure DevOps.
 
@@ -192,7 +192,7 @@ def _update_work_item_impl(
         fields: Dictionary of field name/value pairs to update
         wit_client: Work item tracking client
         project: Optional project name or ID
-        acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
+        acceptance_criteria: Optional acceptance criteria. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
         related_ids: Optional list of work item IDs to link as related (integers). Example: [502199, 502200]
                     Each ID should be a positive integer representing work items in Azure DevOps.
         remove_related_ids: Optional list of work item IDs to unlink (integers). Example: [502199, 502200]
@@ -451,7 +451,7 @@ def register_tools(mcp) -> None:
                 "Task")
             fields: Optional dictionary of additional field name/value pairs
                 to set
-            description: Optional description of the work item. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
+            description: Optional description of the work item. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
             state: Optional initial state for the work item
             assigned_to: Optional user email to assign the work item to
             parent_id: Optional ID of parent work item for hierarchy
@@ -460,7 +460,7 @@ def register_tools(mcp) -> None:
             story_points: Optional story points value
             priority: Optional priority value
             tags: Optional tags as comma-separated string
-            acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
+            acceptance_criteria: Optional acceptance criteria. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
 
         Returns:
             Formatted string containing the created work item details including
@@ -550,7 +550,7 @@ def register_tools(mcp) -> None:
             fields: Optional dictionary of field name/value pairs to update
             project: Optional project name or ID
             title: Optional new title for the work item
-            description: Optional new description. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
+            description: Optional new description. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
             state: Optional new state
             assigned_to: Optional user email to assign to
             iteration_path: Optional new iteration path
@@ -558,7 +558,7 @@ def register_tools(mcp) -> None:
             story_points: Optional new story points value
             priority: Optional new priority value
             tags: Optional new tags as comma-separated string
-            acceptance_criteria: Optional acceptance criteria. You must provide the content in HTML format. The automatic conversion to HTML is very basic (only line breaks are preserved as <br>), so for best results, please provide well-formed HTML content directly. Markdown is not fully supported.
+            acceptance_criteria: Optional acceptance criteria. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
 
         Returns:
             Formatted string containing the updated work item details with
