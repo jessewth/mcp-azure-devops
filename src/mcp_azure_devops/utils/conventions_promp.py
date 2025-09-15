@@ -2,23 +2,23 @@ from mcp.server.fastmcp import FastMCP
 
 
 def register_prompt(mcp: FastMCP) -> None:
-    
-    @mcp.prompt(name="Create Conventions File", 
-                description="Create a starting conventions file Azure DevOps")
+    @mcp.prompt(
+        name="Create Conventions File",
+        description="Create a starting conventions file Azure DevOps",
+    )
     def create_conventions_file() -> str:
         """
         Create a starting conventions file for Azure DevOps.
-        
+
         Use this prompt when you need to:
         - Generate a conventions file for Azure DevOps
         - Get a template for project conventions
         - Start defining project standards and guidelines
-        
+
         Returns:
             A formatted conventions file template
         """
-        
-        
+
         return """Create a concise Azure DevOps conventions file to 
     serve as a quick reference for our environment. 
     This should capture all important patterns and structures 
@@ -56,4 +56,3 @@ variations between projects.
 When listing field names or other details, prioritize the most important ones.
 The goal is to create a reference that captures key conventions 
 while staying concise."""
-    
