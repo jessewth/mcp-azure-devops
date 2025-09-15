@@ -5,7 +5,7 @@ from mcp_azure_devops.features.work_items import tools
 def register(mcp):
     """
     Register all work items components with the MCP server.
-    
+
     Args:
         mcp: The FastMCP server instance
     """

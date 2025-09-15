@@ -1,6 +1,7 @@
 """
 Work item tools for Azure DevOps.
 """
+
 from mcp_azure_devops.features.work_items.tools import (
     attachments,
     comments,
@@ -16,7 +17,7 @@ from mcp_azure_devops.features.work_items.tools import (
 def register_tools(mcp) -> None:
     """
     Register all work item tools with the MCP server.
-    
+
     Args:
         mcp: The FastMCP server instance
     """
