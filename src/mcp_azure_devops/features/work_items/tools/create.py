@@ -95,6 +95,7 @@ def _create_work_item_impl(
     parent_id: Optional[int] = None,
     acceptance_criteria: Optional[str] = None,
     related_ids: Optional[list[int]] = None,
+    tested_by_ids: Optional[list[int]] = None,
 ) -> str:
     """
     Implementation of creating a work item.
@@ -110,6 +111,8 @@ def _create_work_item_impl(
         acceptance_criteria: Optional acceptance criteria. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
         related_ids: Optional list of work item IDs to link as related (integers). Example: [502199, 502200]
                     Each ID should be a positive integer representing work items in Azure DevOps.
+        tested_by_ids: Optional list of work item IDs to link as tested by (integers). Example: [502199, 502200]
+                      Each ID should be a positive integer representing test case work items in Azure DevOps.
 
     Returns:
         Formatted string containing the created work item details
@@ -165,9 +168,23 @@ def _create_work_item_impl(
                     id=new_work_item.id,
                     project=project,
                 )
+        # TestedBy links
+        if tested_by_ids:
+            for tested_by_id in tested_by_ids:
+                tested_by_id = int(tested_by_id)
+                tested_by_document = _build_link_document(
+                    target_id=tested_by_id,
+                    link_type="Microsoft.VSTS.Common.TestedBy-Forward",
+                    org_url=org_url,
+                )
+                new_work_item = wit_client.update_work_item(
+                    document=tested_by_document,
+                    id=new_work_item.id,
+                    project=project,
+                )
     except Exception as e:
         return (
-            f"Work item created successfully, but failed to establish parent/related links: {str(e)}\n\n"
+            f"Work item created successfully, but failed to establish parent/related/tested by links: {str(e)}\n\n"
             f"{format_work_item(new_work_item)}"
         )
     return format_work_item(new_work_item)
@@ -181,6 +198,8 @@ def _update_work_item_impl(
     acceptance_criteria: Optional[str] = None,
     related_ids: Optional[list[int]] = None,
     remove_related_ids: Optional[list[int]] = None,
+    tested_by_ids: Optional[list[int]] = None,
+    remove_tested_by_ids: Optional[list[int]] = None,
 ) -> str:
     """
     Implementation of updating a work item.
@@ -197,6 +216,11 @@ def _update_work_item_impl(
                     Each ID should be a positive integer representing work items in Azure DevOps.
         remove_related_ids: Optional list of work item IDs to unlink (integers). Example: [502199, 502200]
                            Each ID should be a positive integer representing work items in Azure DevOps.
+        tested_by_ids: Optional list of work item IDs to link as tested by (integers). Example: [502199, 502200]
+                      Each ID should be a positive integer representing test case work items in Azure DevOps.
+                      Creates a TestedBy-Forward link from this work item to the test case.
+        remove_tested_by_ids: Optional list of work item IDs to unlink from tested by relationship (integers). Example: [502199, 502200]
+                             Each ID should be a positive integer representing test case work items in Azure DevOps.
 
     Returns:
         Formatted string containing the updated work item details
@@ -250,6 +274,33 @@ def _update_work_item_impl(
             updated_work_item = wit_client.update_work_item(
                 document=remove_document, id=id, project=project
             )
+    # Handle tested by links (add)
+    if tested_by_ids:
+        org_url = _get_organization_url()
+        for tested_by_id in tested_by_ids:
+            tested_by_id = int(tested_by_id)  # Ensure integer conversion
+            tested_by_document = _build_link_document(
+                target_id=tested_by_id,
+                link_type="Microsoft.VSTS.Common.TestedBy-Forward",
+                org_url=org_url,
+            )
+            updated_work_item = wit_client.update_work_item(
+                document=tested_by_document, id=id, project=project
+            )
+    # Handle tested by links (remove)
+    if remove_tested_by_ids:
+        org_url = _get_organization_url()
+        for tested_by_id in remove_tested_by_ids:
+            tested_by_id = int(tested_by_id)  # Ensure integer conversion
+            remove_document = [
+                JsonPatchOperation(
+                    op="remove",
+                    path=f"/relations/{_find_tested_by_relation_index(updated_work_item, tested_by_id, org_url)}",
+                )
+            ]
+            updated_work_item = wit_client.update_work_item(
+                document=remove_document, id=id, project=project
+            )
     return format_work_item(updated_work_item)
 
 
@@ -260,6 +311,15 @@ def _find_relation_index(work_item, related_id, org_url):
         if rel.rel == "System.LinkTypes.Related" and rel.url == url:
             return idx
     raise Exception(f"Related link to work item {related_id} not found.")
+
+
+# Helper to find the index of a tested by link
+def _find_tested_by_relation_index(work_item, tested_by_id, org_url):
+    url = f"{org_url}/_apis/wit/workItems/{tested_by_id}"
+    for idx, rel in enumerate(getattr(work_item, "relations", []) or []):
+        if rel.rel == "Microsoft.VSTS.Common.TestedBy-Forward" and rel.url == url:
+            return idx
+    raise Exception(f"TestedBy link to work item {tested_by_id} not found.")
 
 
 def _add_link_to_work_item_impl(
@@ -430,6 +490,7 @@ def register_tools(mcp) -> None:
         priority: Optional[int] = None,
         tags: Optional[str] = None,
         acceptance_criteria: Optional[str] = None,
+        tested_by_ids: Optional[list[int]] = None,
     ) -> str:
         """
         Creates a new work item in Azure DevOps.
@@ -461,6 +522,7 @@ def register_tools(mcp) -> None:
             priority: Optional priority value
             tags: Optional tags as comma-separated string
             acceptance_criteria: Optional acceptance criteria. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
+            tested_by_ids: Optional list of test case work item IDs to link (integers). Example: [502199, 502200].
 
         Returns:
             Formatted string containing the created work item details including
@@ -504,6 +566,7 @@ def register_tools(mcp) -> None:
                 parent_id=parent_id,
                 acceptance_criteria=acceptance_criteria,
                 related_ids=related_ids,
+                tested_by_ids=tested_by_ids,
             )
 
         except AzureDevOpsClientError as e:
@@ -528,6 +591,8 @@ def register_tools(mcp) -> None:
         acceptance_criteria: Optional[str] = None,
         related_ids: Optional[list[int]] = None,
         remove_related_ids: Optional[list[int]] = None,
+        tested_by_ids: Optional[list[int]] = None,
+        remove_tested_by_ids: Optional[list[int]] = None,
     ) -> str:
         """
         Modifies an existing work item's fields and properties.
@@ -559,6 +624,15 @@ def register_tools(mcp) -> None:
             priority: Optional new priority value
             tags: Optional new tags as comma-separated string
             acceptance_criteria: Optional acceptance criteria. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
+            related_ids: Optional list of work item IDs to link as related (integers). Example: [502199, 502200]
+                        Each ID should be a positive integer representing work items in Azure DevOps.
+            remove_related_ids: Optional list of work item IDs to unlink from related relationship (integers). Example: [502199, 502200]
+                               Each ID should be a positive integer representing work items in Azure DevOps.
+            tested_by_ids: Optional list of test case work item IDs to link (integers). Example: [502199, 502200]
+                          Each ID should be a positive integer representing test case work items in Azure DevOps.
+                          Creates a TestedBy-Forward link from this work item to the test case.
+            remove_tested_by_ids: Optional list of test case work item IDs to unlink (integers). Example: [502199, 502200]
+                                 Each ID should be a positive integer representing test case work items in Azure DevOps.
 
         Returns:
             Formatted string containing the updated work item details with
@@ -590,12 +664,14 @@ def register_tools(mcp) -> None:
                     field_name = _ensure_system_prefix(field_name)
                     all_fields[field_name] = field_value
 
-            # Allow updates with only related_ids or remove_related_ids
+            # Allow updates with only related_ids, remove_related_ids, tested_by_ids or remove_tested_by_ids
             if (
                 not all_fields
                 and not acceptance_criteria
                 and not related_ids
                 and not remove_related_ids
+                and not tested_by_ids
+                and not remove_tested_by_ids
             ):
                 return "Error: At least one field or relationship must be specified for update"
 
@@ -607,6 +683,8 @@ def register_tools(mcp) -> None:
                 acceptance_criteria=acceptance_criteria,
                 related_ids=related_ids,
                 remove_related_ids=remove_related_ids,
+                tested_by_ids=tested_by_ids,
+                remove_tested_by_ids=remove_tested_by_ids,
             )
 
         except AzureDevOpsClientError as e:
