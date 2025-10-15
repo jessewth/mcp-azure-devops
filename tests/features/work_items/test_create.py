@@ -183,6 +183,54 @@ def test_create_work_item_impl_with_parent(mock_get_org_url):
     assert "**System.Title**: Test Bug" in result
 
 
+@patch(
+    "mcp_azure_devops.features.work_items.tools.create._get_organization_url"
+)
+def test_create_work_item_impl_with_tested_by_ids(mock_get_org_url):
+    """Test creating a work item with tested by relationships."""
+    mock_client = MagicMock()
+
+    mock_work_item = MagicMock(spec=WorkItem)
+    mock_work_item.id = 123
+    mock_work_item.fields = {
+        "System.WorkItemType": "Bug",
+        "System.Title": "Test Bug",
+        "System.State": "New",
+        "System.TeamProject": "Test Project",
+    }
+
+    mock_get_org_url.return_value = "https://dev.azure.com/org"
+
+    mock_client.create_work_item.return_value = mock_work_item
+    mock_client.update_work_item.return_value = mock_work_item
+
+    fields = {
+        "System.Title": "Test Bug",
+        "System.Description": "This is a test bug",
+    }
+
+    result = _create_work_item_impl(
+        fields=fields,
+        project="Test Project",
+        work_item_type="Bug",
+        wit_client=mock_client,
+        tested_by_ids=[456, 789],
+    )
+
+    assert mock_client.update_work_item.call_count == 2
+
+    for call in mock_client.update_work_item.call_args_list:
+        args, kwargs = call
+        document = kwargs.get("document") or args[0]
+        assert document[0].value["rel"] == "Microsoft.VSTS.Common.TestedBy-Forward"
+        assert document[0].value["url"].startswith(
+            "https://dev.azure.com/org/_apis/wit/workItems/"
+        )
+
+    assert "# Work Item 123" in result
+    assert "**System.Title**: Test Bug" in result
+
+
 def test_update_work_item_impl():
     """Test updating a work item."""
     # Arrange
@@ -381,7 +429,7 @@ def test_update_work_item_with_tested_by_ids():
         document = kwargs.get("document") or args[0]
         assert document[0].op == "add"
         assert document[0].path == "/relations/-"
-        assert document[0].value["rel"] == "System.LinkTypes.TestedBy-Forward"
+        assert document[0].value["rel"] == "Microsoft.VSTS.Common.TestedBy-Forward"
 
     # Verify result contains work item info
     assert "# Work Item 123" in result
@@ -405,7 +453,7 @@ def test_update_work_item_with_remove_tested_by_ids():
 
     # Mock existing relations
     mock_relation = MagicMock()
-    mock_relation.rel = "System.LinkTypes.TestedBy-Forward"
+    mock_relation.rel = "Microsoft.VSTS.Common.TestedBy-Forward"
     mock_relation.url = "https://dev.azure.com/org/_apis/wit/workItems/456"
     mock_work_item.relations = [mock_relation]
 
@@ -450,11 +498,11 @@ def test_find_tested_by_relation_index():
     mock_relation1.url = "https://dev.azure.com/org/_apis/wit/workItems/100"
 
     mock_relation2 = MagicMock()
-    mock_relation2.rel = "System.LinkTypes.TestedBy-Forward"
+    mock_relation2.rel = "Microsoft.VSTS.Common.TestedBy-Forward"
     mock_relation2.url = "https://dev.azure.com/org/_apis/wit/workItems/456"
 
     mock_relation3 = MagicMock()
-    mock_relation3.rel = "System.LinkTypes.TestedBy-Forward"
+    mock_relation3.rel = "Microsoft.VSTS.Common.TestedBy-Forward"
     mock_relation3.url = "https://dev.azure.com/org/_apis/wit/workItems/789"
 
     mock_work_item.relations = [mock_relation1, mock_relation2, mock_relation3]
@@ -529,7 +577,7 @@ def test_update_work_item_with_batch_tested_by_ids():
     for call in calls:
         args, kwargs = call
         document = kwargs.get("document") or args[0]
-        assert document[0].value["rel"] == "System.LinkTypes.TestedBy-Forward"
+        assert document[0].value["rel"] == "Microsoft.VSTS.Common.TestedBy-Forward"
 
     # Verify result contains work item info
     assert "# Work Item 123" in result
