@@ -150,6 +150,52 @@ class TestSanitizeDescriptionHtml:
         result = sanitize_description_html(plain_text)
         assert result == "<div>This is plain text<br>With line breaks</div>"
 
+    def test_markdown_with_literal_newline_sequences(self):
+        """Markdown containing literal \n sequences should still render as HTML."""
+        markdown_text = (
+            "## Title\\n\\n"
+            "### Details\\n"
+            "- First item\\n"
+            "- Second item with `<>\"&` characters\\n"
+            "\\n---\\n"
+            "| Column 1 | Column 2 |\\n"
+            "|----------|----------|\\n"
+            "| A | B |"
+        )
+
+        result = sanitize_description_html(markdown_text)
+        assert "<h2>Title</h2>" in result
+        assert "<h3>Details</h3>" in result
+        assert result.count("<li>") == 2
+        assert "| Column 1 | Column 2 |" in result
+
+    def test_full_clarifications_markdown_renders_correctly(self):
+        """Regression case mirroring clarifications content provided by users."""
+        clarifications = (
+            "## Clarifications\\n\\n"
+            "### Clarified Requirements\\n\\n"
+            "#### Question 1: [Functional Scope & Behavior] - Rate Limit handling\\n"
+            "**Answer:** Keep existing error handling.\\n\\n"
+            "#### Question 2: [Data Model] - Naming rules\\n"
+            "**Answer:** Allow duplicated names per Shop but rely on CollectionId.\\n\\n"
+            "---\\n\\n"
+            "### Arc42 Architecture Readiness\\n\\n"
+            "| Section | Status | Notes |\\n"
+            "|---------|--------|-------|\\n"
+            "| Solution Strategy | Ready | Describe SCM.API integration path |\\n"
+            "| Component Diagram | Needs Input | Missing controller/service split |\\n"
+            "| Runtime View | Needs Input | Document rate limit checks |\\n\\n"
+            "**Overall:** Proceed with caution\\n\\n"
+            "**Recommendation:** Fill Architecture gaps during Phase 2\\n\\n"
+            "**Ready for Phase 2: Architecture Planning**"
+        )
+
+        result = sanitize_description_html(clarifications)
+        assert "<h2>Clarifications</h2>" in result
+        assert "<h3>Clarified Requirements</h3>" in result
+        assert "| Section | Status | Notes |" in result
+        assert "<strong>Overall:</strong>" in result
+
     def test_complex_markdown_conversion(self):
         """Test conversion of complex Markdown content."""
         complex_markdown = """# Project Requirements

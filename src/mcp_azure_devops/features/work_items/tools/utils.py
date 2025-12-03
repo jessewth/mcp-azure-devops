@@ -99,6 +99,17 @@ def _is_markdown_content(text: str) -> bool:
     return False
 
 
+def _normalize_literal_line_breaks(text: str) -> str:
+    """Convert literal line-break escape sequences (e.g. ``\n``) into real newlines."""
+    if "\\n" not in text and "\\r" not in text:
+        return text
+
+    normalized = text.replace("\\r\\n", "\n")
+    normalized = normalized.replace("\\n", "\n")
+    normalized = normalized.replace("\\r", "\n")
+    return normalized
+
+
 def sanitize_description_html(description: Optional[str]) -> Optional[str]:
     """
     Check and automatically convert description text to HTML format, supporting both HTML and Markdown input.
@@ -117,7 +128,8 @@ def sanitize_description_html(description: Optional[str]) -> Optional[str]:
     if not description:
         return description
 
-    desc_stripped = description.strip()
+    normalized_description = _normalize_literal_line_breaks(description)
+    desc_stripped = normalized_description.strip()
     
     # Return early for empty content after stripping
     if not desc_stripped:
@@ -125,7 +137,7 @@ def sanitize_description_html(description: Optional[str]) -> Optional[str]:
     
     # Check if it's already HTML content
     if _is_html_content(desc_stripped):
-        return description
+        return normalized_description
     
     # Check if it's Markdown content and convert to HTML
     if MARKDOWN_AVAILABLE and _is_markdown_content(desc_stripped):
@@ -136,5 +148,5 @@ def sanitize_description_html(description: Optional[str]) -> Optional[str]:
         return html_content.rstrip('\n')
     
     # For plain text, convert line breaks to HTML break tags
-    description_html = description.replace("\n", "<br>")
+    description_html = normalized_description.replace("\n", "<br>")
     return f"<div>{description_html}</div>"

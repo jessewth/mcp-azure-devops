@@ -604,6 +604,7 @@ def register_tools(mcp) -> None:
         - Modify effort estimates or priority levels
         - Add or change classification (area/iteration)
         - Update any field supported by the work item type
+        - Ensure Markdown descriptions with literal "\\n" sequences render correctly (2025-12 sanitizer update)
 
         IMPORTANT: This tool updates the work item directly in Azure DevOps.
         Changes will be immediately visible to all users with access to the
@@ -615,7 +616,7 @@ def register_tools(mcp) -> None:
             fields: Optional dictionary of field name/value pairs to update
             project: Optional project name or ID
             title: Optional new title for the work item
-            description: Optional new description. You can provide content in HTML, Markdown, or plain text format. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
+            description: Optional new description. You can provide content in HTML, Markdown, or plain text format. As of the latest MCP release, literal "\\n" or "\\r" sequences are normalized so Markdown such as your Clarifications summary renders exactly as typed. HTML content is preserved as-is, Markdown is automatically converted to HTML, and plain text has line breaks converted to HTML break tags for proper display in Azure DevOps.
             state: Optional new state
             assigned_to: Optional user email to assign to
             iteration_path: Optional new iteration path
