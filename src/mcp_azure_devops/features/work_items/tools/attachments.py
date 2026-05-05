@@ -1,7 +1,8 @@
 """
 Attachment operations for Azure DevOps work items.
 
-This module provides MCP tools for uploading and attaching files to work items.
+This module provides MCP tools for uploading, listing, and downloading
+attachments from work items.
 """
 
 import os
@@ -180,6 +181,190 @@ def _get_work_item_attachments_impl(
         raise Exception(f"Error retrieving work item attachments: {str(e)}")
 
 
+def _extract_attachment_id(url: str) -> Optional[str]:
+    """
+    Extract the attachment GUID from an Azure DevOps attachment URL.
+
+    Args:
+        url: The attachment URL from Azure DevOps
+
+    Returns:
+        The attachment GUID string, or None if not found
+    """
+    match = re.search(
+        r"/attachments/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}"
+        r"-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})",
+        url,
+    )
+    return match.group(1) if match else None
+
+
+def _sanitize_filename(filename: str) -> str:
+    """
+    Sanitize a filename to prevent path traversal and invalid characters.
+
+    Args:
+        filename: The original filename
+
+    Returns:
+        A safe filename string
+    """
+    # Remove path separators and parent directory references
+    filename = os.path.basename(filename)
+    # Remove potentially dangerous characters
+    filename = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", filename)
+    # Ensure filename is not empty
+    if not filename or filename.strip(". ") == "":
+        filename = "unnamed_attachment"
+    return filename
+
+
+def _download_attachment_impl(
+    attachment_url: str,
+    attachment_name: str,
+    download_path: str,
+    wit_client: WorkItemTrackingClient,
+) -> Tuple[bool, str]:
+    """
+    Download a single attachment to the local filesystem.
+
+    Args:
+        attachment_url: The Azure DevOps attachment URL
+        attachment_name: The name to save the file as
+        download_path: Local directory to save the file
+        wit_client: Work item tracking client
+
+    Returns:
+        Tuple[bool, str]: (success, local_file_path or error_message)
+    """
+    attachment_id = _extract_attachment_id(attachment_url)
+    if not attachment_id:
+        return (
+            False,
+            f"Cannot parse attachment ID from URL: {attachment_url}",
+        )
+
+    safe_name = _sanitize_filename(attachment_name)
+
+    try:
+        os.makedirs(download_path, exist_ok=True)
+
+        content = wit_client.get_attachment_content(
+            id=attachment_id,
+            file_name=safe_name,
+            download=True,
+        )
+
+        local_path = os.path.join(download_path, safe_name)
+        with open(local_path, "wb") as f:
+            for chunk in content:
+                f.write(chunk)
+
+        return (True, local_path)
+    except Exception as e:
+        return (False, f"Download failed: {str(e)}")
+
+
+def _format_download_results(
+    item_id: int, results: List[Dict[str, object]]
+) -> str:
+    """
+    Format download results as a markdown report.
+
+    Args:
+        item_id: The work item ID
+        results: List of download result dictionaries
+
+    Returns:
+        Formatted markdown string with download results
+    """
+    output = [f"# Download Results for Work Item {item_id}\n"]
+
+    succeeded = [r for r in results if r["success"]]
+    failed = [r for r in results if not r["success"]]
+
+    output.append(
+        f"**Total:** {len(results)} | "
+        f"**Success:** {len(succeeded)} | "
+        f"**Failed:** {len(failed)}\n"
+    )
+
+    if succeeded:
+        output.append("## Successfully Downloaded")
+        for r in succeeded:
+            output.append(f"- ✅ `{r['name']}` → `{r['detail']}`")
+        output.append("")
+
+    if failed:
+        output.append("## Failed Downloads")
+        for r in failed:
+            output.append(f"- ❌ `{r['name']}`: {r['detail']}")
+        output.append("")
+
+    return "\n".join(output)
+
+
+def _download_work_item_attachments_impl(
+    item_id: int,
+    download_path: str,
+    wit_client: WorkItemTrackingClient,
+    attachment_name: Optional[str] = None,
+    project: Optional[str] = None,
+    include_embedded: bool = False,
+) -> str:
+    """
+    Download attachments from a work item to a local directory.
+
+    Args:
+        item_id: The work item ID
+        download_path: Local directory to save files
+        wit_client: Work item tracking client
+        attachment_name: Optional filter to download specific attachment
+        project: Optional project name
+        include_embedded: Whether to include embedded images
+
+    Returns:
+        Formatted markdown string with download results
+    """
+    # Get the list of attachments
+    attachments = _get_work_item_attachments_impl(item_id, wit_client, project)
+
+    if not attachments:
+        return f"No attachments found for work item {item_id}."
+
+    # Filter by name if specified
+    if attachment_name:
+        attachments = [a for a in attachments if a["name"] == attachment_name]
+
+    # Exclude embedded images unless requested
+    if not include_embedded:
+        attachments = [
+            a for a in attachments if a.get("type") != "embedded_image"
+        ]
+
+    if not attachments:
+        return f"No matching attachments found for work item {item_id}."
+
+    # Download each attachment
+    results: List[Dict[str, object]] = []
+    for attachment in attachments:
+        success, detail = _download_attachment_impl(
+            attachment["url"],
+            attachment["name"],
+            download_path,
+            wit_client,
+        )
+        results.append(
+            {
+                "name": attachment["name"],
+                "success": success,
+                "detail": detail,
+            }
+        )
+
+    return _format_download_results(item_id, results)
+
+
 def register_tools(mcp) -> None:
     """
     Register work item attachment tools with the MCP server.
@@ -309,3 +494,55 @@ def register_tools(mcp) -> None:
             return f"Error: {str(e)}"
         except Exception as e:
             return f"Error retrieving attachments: {str(e)}"
+
+    @mcp.tool()
+    def download_work_item_attachment(
+        id: int,
+        download_path: str,
+        attachment_name: Optional[str] = None,
+        project: Optional[str] = None,
+        include_embedded: bool = False,
+    ) -> str:
+        """
+        Downloads attachments from a work item to local filesystem.
+
+        Use this tool when you need to:
+        - Download files attached to work items for local processing
+        - Save screenshots or diagrams from work items locally
+        - Extract embedded images from work item descriptions
+        - Get local copies of requirement documents or specs
+
+        IMPORTANT: Files will be saved to the specified download_path
+        directory. The directory will be created if it doesn't exist.
+        Existing files with the same name will be overwritten.
+
+        Args:
+            id: The work item ID (integer). Example: 502199
+                This should be a positive integer representing the unique
+                identifier of the work item in Azure DevOps.
+            download_path: Local directory path to save downloaded files
+            attachment_name: Optional specific attachment name to
+                download. If not provided, downloads all attachments.
+            project: Optional project name
+            include_embedded: Whether to include embedded images from
+                HTML fields (default: False)
+
+        Returns:
+            Formatted string containing download results including
+            success/failure status and local file paths, formatted
+            as markdown
+        """
+        try:
+            wit_client = get_work_item_client()
+            return _download_work_item_attachments_impl(
+                id,
+                download_path,
+                wit_client,
+                attachment_name,
+                project,
+                include_embedded,
+            )
+        except AzureDevOpsClientError as e:
+            return f"Error: {str(e)}"
+        except Exception as e:
+            return f"Error downloading attachments: {str(e)}"
